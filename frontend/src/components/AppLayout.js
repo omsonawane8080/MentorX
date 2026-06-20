@@ -1,6 +1,7 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { APP } from '@/constants/testIds';
+import RoadmapSwitcher from '@/components/RoadmapSwitcher';
 import {
   House, MapTrifold, ListChecks, Question, Microphone,
   ChartLineUp, SignOut, Leaf,
@@ -31,7 +32,7 @@ export default function AppLayout({ children }) {
         className="hidden md:flex flex-col gap-2 p-6 border-r"
         style={{ width: 248, borderColor: 'var(--line)', background: 'var(--surface)' }}
       >
-        <div className="flex items-center gap-2 mb-8">
+        <div className="flex items-center gap-2 mb-6">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center"
                style={{ background: 'var(--brand)' }}>
             <Leaf size={20} color="white" weight="duotone" />
@@ -41,6 +42,11 @@ export default function AppLayout({ children }) {
             <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Career Coach</div>
           </div>
         </div>
+
+        <div className="mb-6">
+          <RoadmapSwitcher />
+        </div>
+
         <nav className="flex flex-col gap-1 flex-1">
           {navItems.map(({ to, label, icon: Icon, testId }) => {
             const active = location.pathname.startsWith(to);

@@ -73,6 +73,7 @@ class TaskCompleteInput(BaseModel):
 class QuizGenerateInput(BaseModel):
     topic: str
     difficulty: str = "medium"
+    num_questions: int = 5
 
 
 class QuizSubmitInput(BaseModel):
@@ -206,6 +207,7 @@ async def auth_logout(request: Request, response: Response):
 # ---------------------------------------------------------------------------
 @api.post("/onboarding")
 async def onboarding(payload: OnboardingInput, user: User = Depends(get_current_user)):
+    """Create a NEW roadmap and mark it active. Older roadmaps are preserved."""
     if payload.timeline_months < 1 or payload.timeline_months > 12:
         raise HTTPException(status_code=400, detail="timeline_months must be 1-12")
 
@@ -218,28 +220,35 @@ async def onboarding(payload: OnboardingInput, user: User = Depends(get_current_
         logger.exception("Roadmap generation failed")
         raise HTTPException(status_code=502, detail=f"Roadmap generation failed: {e}")
 
+    roadmap_id = f"rm_{uuid.uuid4().hex[:10]}"
+    roadmap_doc = {
+        "roadmap_id": roadmap_id,
+        "user_id": user.user_id,
+        "target_role": payload.target_role,
+        "background": payload.background,
+        "timeline_months": payload.timeline_months,
+        "data": roadmap,
+        "active": True,
+        "created_at": now_utc().isoformat(),
+    }
+    # Deactivate other roadmaps but DO NOT delete them
+    await db.roadmaps.update_many({"user_id": user.user_id}, {"$set": {"active": False}})
+    await db.roadmaps.insert_one(roadmap_doc)
+
     profile = {
         "user_id": user.user_id,
         "target_role": payload.target_role,
         "background": payload.background,
         "timeline_months": payload.timeline_months,
+        "active_roadmap_id": roadmap_id,
         "updated_at": now_utc().isoformat(),
     }
     await db.profiles.update_one(
         {"user_id": user.user_id}, {"$set": profile}, upsert=True
     )
 
-    roadmap_doc = {
-        "roadmap_id": f"rm_{uuid.uuid4().hex[:10]}",
-        "user_id": user.user_id,
-        "data": roadmap,
-        "created_at": now_utc().isoformat(),
-    }
-    await db.roadmaps.delete_many({"user_id": user.user_id})
-    await db.roadmaps.insert_one(roadmap_doc)
-
     await db.users.update_one({"user_id": user.user_id}, {"$set": {"onboarded": True}})
-    return {"profile": profile, "roadmap": roadmap}
+    return {"profile": profile, "roadmap_id": roadmap_id, "roadmap": roadmap}
 
 
 @api.get("/profile")
@@ -248,12 +257,91 @@ async def get_profile(user: User = Depends(get_current_user)):
     return profile or {}
 
 
+async def _get_active_roadmap(user_id: str) -> Optional[Dict[str, Any]]:
+    """Return the user's active roadmap or the most recent one if none flagged."""
+    doc = await db.roadmaps.find_one(
+        {"user_id": user_id, "active": True}, {"_id": 0}
+    )
+    if doc:
+        return doc
+    return await db.roadmaps.find_one(
+        {"user_id": user_id}, {"_id": 0}, sort=[("created_at", -1)]
+    )
+
+
 @api.get("/roadmap")
 async def get_roadmap(user: User = Depends(get_current_user)):
-    doc = await db.roadmaps.find_one({"user_id": user.user_id}, {"_id": 0})
+    doc = await _get_active_roadmap(user.user_id)
     if not doc:
         raise HTTPException(status_code=404, detail="No roadmap yet — complete onboarding first")
     return doc
+
+
+@api.get("/roadmaps")
+async def list_roadmaps(user: User = Depends(get_current_user)):
+    """List all roadmaps for the user, newest first. Each has an `active` flag."""
+    docs = await db.roadmaps.find(
+        {"user_id": user.user_id}, {"_id": 0, "data": 0}
+    ).sort("created_at", -1).to_list(50)
+    return docs
+
+
+@api.post("/roadmaps/{roadmap_id}/activate")
+async def activate_roadmap(roadmap_id: str, user: User = Depends(get_current_user)):
+    """Switch to a different roadmap (e.g. switching from AI/ML to SAP ABAP)."""
+    target = await db.roadmaps.find_one(
+        {"roadmap_id": roadmap_id, "user_id": user.user_id}, {"_id": 0}
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="Roadmap not found")
+    await db.roadmaps.update_many({"user_id": user.user_id}, {"$set": {"active": False}})
+    await db.roadmaps.update_one(
+        {"roadmap_id": roadmap_id, "user_id": user.user_id},
+        {"$set": {"active": True}},
+    )
+    # Sync profile with this roadmap's role/background so daily tasks reflect it
+    await db.profiles.update_one(
+        {"user_id": user.user_id},
+        {"$set": {
+            "target_role": target["target_role"],
+            "background": target["background"],
+            "timeline_months": target["timeline_months"],
+            "active_roadmap_id": roadmap_id,
+            "updated_at": now_utc().isoformat(),
+        }},
+        upsert=True,
+    )
+    return {"ok": True, "active_roadmap_id": roadmap_id}
+
+
+@api.delete("/roadmaps/{roadmap_id}")
+async def delete_roadmap(roadmap_id: str, user: User = Depends(get_current_user)):
+    target = await db.roadmaps.find_one(
+        {"roadmap_id": roadmap_id, "user_id": user.user_id}, {"_id": 0}
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="Roadmap not found")
+    was_active = target.get("active", False)
+    await db.roadmaps.delete_one({"roadmap_id": roadmap_id, "user_id": user.user_id})
+    # If we deleted the active one, activate the most recent remaining
+    if was_active:
+        latest = await db.roadmaps.find_one(
+            {"user_id": user.user_id}, {"_id": 0}, sort=[("created_at", -1)]
+        )
+        if latest:
+            await db.roadmaps.update_one(
+                {"roadmap_id": latest["roadmap_id"]}, {"$set": {"active": True}}
+            )
+            await db.profiles.update_one(
+                {"user_id": user.user_id},
+                {"$set": {
+                    "target_role": latest["target_role"],
+                    "background": latest["background"],
+                    "timeline_months": latest["timeline_months"],
+                    "active_roadmap_id": latest["roadmap_id"],
+                }},
+            )
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
@@ -420,24 +508,33 @@ async def _bump_streak(user_id: str):
 @api.post("/quiz/generate")
 async def quiz_generate(payload: QuizGenerateInput, user: User = Depends(get_current_user)):
     try:
-        questions = await agents.generate_quiz(payload.topic, payload.difficulty)
+        questions = await agents.generate_quiz(
+            payload.topic, payload.difficulty, payload.num_questions
+        )
     except Exception as e:
         logger.exception("Quiz generation failed")
         raise HTTPException(status_code=502, detail=f"Quiz generation failed: {e}")
 
     quiz_id = f"qz_{uuid.uuid4().hex[:10]}"
-    # store full quiz but only return question + options to client (no answers)
+    # 60 seconds per question — gives users enough time to think but not overthink.
+    time_limit_seconds = max(60, len(questions) * 60)
     doc = {
         "quiz_id": quiz_id,
         "user_id": user.user_id,
         "topic": payload.topic,
         "difficulty": payload.difficulty,
         "questions": questions,
+        "time_limit_seconds": time_limit_seconds,
         "created_at": now_utc().isoformat(),
     }
     await db.quizzes.insert_one(doc)
     safe = [{"question": q["question"], "options": q["options"]} for q in questions]
-    return {"quiz_id": quiz_id, "topic": payload.topic, "questions": safe}
+    return {
+        "quiz_id": quiz_id,
+        "topic": payload.topic,
+        "time_limit_seconds": time_limit_seconds,
+        "questions": safe,
+    }
 
 
 @api.post("/quiz/submit")
@@ -489,6 +586,8 @@ async def interview_start(payload: InterviewStartInput, user: User = Depends(get
     except Exception as e:
         logger.exception("Interview start failed")
         raise HTTPException(status_code=502, detail=f"Interview start failed: {e}")
+    # 4 turns * 2 minutes = 8 minutes total interview time
+    time_limit_seconds = 8 * 60
     doc = {
         "interview_id": interview_id,
         "user_id": user.user_id,
@@ -496,10 +595,17 @@ async def interview_start(payload: InterviewStartInput, user: User = Depends(get
         "focus": payload.focus,
         "messages": [{"role": "interviewer", "content": opener, "ts": now_utc().isoformat()}],
         "status": "ongoing",
+        "time_limit_seconds": time_limit_seconds,
         "created_at": now_utc().isoformat(),
     }
     await db.interviews.insert_one(doc)
-    return {"interview_id": interview_id, "messages": doc["messages"], "status": "ongoing"}
+    return {
+        "interview_id": interview_id,
+        "messages": doc["messages"],
+        "status": "ongoing",
+        "time_limit_seconds": time_limit_seconds,
+        "expected_turns": 4,
+    }
 
 
 @api.post("/interview/reply")

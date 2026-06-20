@@ -117,8 +117,9 @@ Tasks must be small (15-60 mins each) and concrete (e.g. "Build a NumPy matrix m
     return data if isinstance(data, list) else data.get("tasks", [])
 
 
-async def generate_quiz(topic: str, difficulty: str = "medium") -> List[Dict[str, Any]]:
-    prompt = f"""Create 5 MCQ questions on the topic.
+async def generate_quiz(topic: str, difficulty: str = "medium", num_questions: int = 5) -> List[Dict[str, Any]]:
+    n = max(3, min(20, int(num_questions)))
+    prompt = f"""Create {n} MCQ questions on the topic.
 
 TOPIC: {topic}
 DIFFICULTY: {difficulty}
@@ -132,7 +133,7 @@ Return JSON array:
     "explanation": "Brief explanation why the correct answer is right."
   }}
 ]
-Make questions practical, not trivia. Mix conceptual and application questions."""
+Make questions practical, not trivia. Mix conceptual and application questions. Return exactly {n} questions."""
     data = await _ask_json(*GEMINI_FAST, f"tutor-quiz-{uuid.uuid4()}", TUTOR_SYSTEM, prompt)
     return data if isinstance(data, list) else data.get("questions", [])
 

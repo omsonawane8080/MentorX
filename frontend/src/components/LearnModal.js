@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import api from '@/lib/api';
 import {
@@ -38,12 +39,16 @@ export default function LearnModal({ open, onClose, name, kind = 'topic' }) {
   const isTopic = kind === 'topic';
   const accent = isTopic ? 'var(--brand)' : 'var(--terracotta)';
 
-  return (
+  // CRITICAL: render via portal at document.body so position:fixed escapes
+  // any ancestor with `transform` (e.g. parent's fade-in animation), which
+  // would otherwise become the containing block and cause the modal to
+  // appear cramped in the corner.
+  return createPortal(
     <div
       data-testid="learn-modal-overlay"
       onClick={onClose}
       style={{
-        position: 'fixed', inset: 0, zIndex: 100,
+        position: 'fixed', inset: 0, zIndex: 1000,
         background: 'rgba(26, 28, 26, 0.55)',
         backdropFilter: 'blur(6px)',
         display: 'flex', alignItems: 'stretch', justifyContent: 'flex-end',
@@ -275,7 +280,8 @@ export default function LearnModal({ open, onClose, name, kind = 'topic' }) {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

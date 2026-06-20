@@ -2,7 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import api from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import { APP } from '@/constants/testIds';
-import { PaperPlaneTilt, Sparkle } from '@phosphor-icons/react';
+import { PaperPlaneTilt, Sparkle, Clock } from '@phosphor-icons/react';
+
+function formatMMSS(s) {
+  if (s < 0) s = 0;
+  const m = Math.floor(s / 60);
+  const sec = String(s % 60).padStart(2, '0');
+  return `${m}:${sec}`;
+}
 
 export default function Interview() {
   const [focus, setFocus] = useState('General fundamentals');
@@ -11,17 +18,42 @@ export default function Interview() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [evaluation, setEvaluation] = useState(null);
+  const [remainingSec, setRemainingSec] = useState(0);
   const scrollRef = useRef(null);
+  const tickRef = useRef(null);
+  const autoSentRef = useRef(false);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [iv, evaluation]);
 
+  // Countdown timer — runs while interview is ongoing
+  useEffect(() => {
+    if (!iv || iv.status !== 'ongoing') return;
+    if (tickRef.current) clearInterval(tickRef.current);
+    tickRef.current = setInterval(() => {
+      setRemainingSec((s) => {
+        if (s <= 1) {
+          clearInterval(tickRef.current);
+          if (!autoSentRef.current) {
+            autoSentRef.current = true;
+            autoSendOnTimeout();
+          }
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tickRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [iv?.status]);
+
   const start = async () => {
-    setError(''); setBusy(true); setEvaluation(null);
+    setError(''); setBusy(true); setEvaluation(null); autoSentRef.current = false;
     try {
       const { data } = await api.post('/interview/start', { focus });
       setIv(data);
+      setRemainingSec(data.time_limit_seconds || 480); // default 8 min
     } catch (e) {
       setError(e?.response?.data?.detail || 'Could not start interview');
     } finally { setBusy(false); }
@@ -33,10 +65,25 @@ export default function Interview() {
     setDraft(''); setBusy(true);
     try {
       const { data } = await api.post('/interview/reply', { interview_id: iv.interview_id, message: msg });
-      setIv(data);
+      setIv({ ...iv, ...data });
     } catch (e) {
       setError(e?.response?.data?.detail || 'Send failed');
     } finally { setBusy(false); }
+  };
+
+  const autoSendOnTimeout = async () => {
+    if (!iv || iv.status !== 'ongoing') return;
+    try {
+      const placeholder = draft.trim() || "(Time ran out — I didn't get to finish my answer)";
+      const { data } = await api.post('/interview/reply', {
+        interview_id: iv.interview_id, message: placeholder,
+      });
+      // After timeout, set status to completed regardless
+      setIv({ ...iv, ...data, status: 'completed' });
+      setDraft('');
+    } catch (e) {
+      // ignore
+    }
   };
 
   const evaluate = async () => {
@@ -49,11 +96,39 @@ export default function Interview() {
     } finally { setBusy(false); }
   };
 
+  const timeLow = iv?.status === 'ongoing' && remainingSec <= 60;
+  const candidateTurns = iv?.messages?.filter((m) => m.role === 'candidate').length || 0;
+
   return (
     <AppLayout>
-      <div className="mb-8">
-        <div className="label">Mock interview</div>
-        <h1 className="text-4xl font-semibold mt-1">A calm, 4-question conversation.</h1>
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="label">Mock interview</div>
+          <h1 className="text-4xl font-semibold mt-1">A calm, 4-question conversation.</h1>
+        </div>
+        {iv?.status === 'ongoing' && (
+          <div
+            data-testid="interview-timer"
+            className="card"
+            style={{
+              padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 10,
+              background: timeLow ? '#FCEFEA' : 'var(--surface)',
+              borderColor: timeLow ? 'var(--terracotta)' : 'var(--line)',
+            }}
+          >
+            <Clock size={18} color={timeLow ? 'var(--terracotta)' : 'var(--brand)'} weight="fill" />
+            <div>
+              <div style={{
+                fontFamily: 'Outfit', fontSize: 22, fontWeight: 600,
+                color: timeLow ? 'var(--terracotta)' : 'var(--brand)',
+                fontVariantNumeric: 'tabular-nums', lineHeight: 1,
+              }}>{formatMMSS(remainingSec)}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Q {candidateTurns + (busy ? 0 : 1)} of {iv.expected_turns || 4}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {!iv && (
@@ -66,6 +141,11 @@ export default function Interview() {
             placeholder="e.g. Python fundamentals, ML concepts, system design basics"
             data-testid={APP.interviewFocusInput}
           />
+          <div className="p-3 rounded-lg mb-4 text-sm flex items-start gap-2"
+               style={{ background: 'var(--surface-2)', color: 'var(--text-muted)' }}>
+            <Clock size={14} style={{ marginTop: 2, flexShrink: 0 }} />
+            <span><strong>8-minute</strong> interview · 4 questions · ~2 minutes per answer. The interview auto-completes when time runs out.</span>
+          </div>
           {error && <div className="text-sm mb-3" style={{ color: 'var(--terracotta)' }}>{error}</div>}
           <button
             className="btn btn-terracotta" onClick={start} disabled={busy}
@@ -133,18 +213,18 @@ export default function Interview() {
               <div className="grid md:grid-cols-2 gap-4 mb-6">
                 <div>
                   <div className="label">Strengths</div>
-                  <ul className="list-disc pl-5 text-sm">{evaluation.strengths?.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                  <ul className="list-disc pl-5 text-sm">{evaluation.strengths?.map((s, i) => <li key={`str-${i}`}>{s}</li>)}</ul>
                 </div>
                 <div>
                   <div className="label">Areas to improve</div>
-                  <ul className="list-disc pl-5 text-sm">{evaluation.weaknesses?.map((s, i) => <li key={i}>{s}</li>)}</ul>
+                  <ul className="list-disc pl-5 text-sm">{evaluation.weaknesses?.map((s, i) => <li key={`wk-${i}`}>{s}</li>)}</ul>
                 </div>
               </div>
 
               <div className="label">Per-answer feedback</div>
               <div className="grid gap-3">
                 {evaluation.per_answer?.map((p, i) => (
-                  <div key={i} className="p-4 rounded-lg" style={{ background: 'var(--surface-2)' }}>
+                  <div key={`pa-${i}`} className="p-4 rounded-lg" style={{ background: 'var(--surface-2)' }}>
                     <div className="text-sm font-medium mb-1">{p.question}</div>
                     <div className="text-sm mb-2" style={{ color: 'var(--text-muted)' }}>"{p.candidate_answer}"</div>
                     <div className="flex gap-2 items-center">
@@ -157,7 +237,7 @@ export default function Interview() {
 
               <div className="label mt-6">Next steps</div>
               <ul className="list-disc pl-5 text-sm">
-                {evaluation.next_steps?.map((s, i) => <li key={i}>{s}</li>)}
+                {evaluation.next_steps?.map((s, i) => <li key={`ns-${i}`}>{s}</li>)}
               </ul>
 
               <button

@@ -1,35 +1,71 @@
-import { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import api from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import { APP } from '@/constants/testIds';
-import { CheckCircle, X } from '@phosphor-icons/react';
+import { CheckCircle, X, Clock, ArrowRight, Sparkle } from '@phosphor-icons/react';
+
+function formatMMSS(s) {
+  if (s < 0) s = 0;
+  const m = Math.floor(s / 60);
+  const sec = String(s % 60).padStart(2, '0');
+  return `${m}:${sec}`;
+}
 
 export default function Quiz() {
   const [searchParams] = useSearchParams();
   const initialTopic = searchParams.get('topic') || '';
+  const navigate = useNavigate();
+
   const [topic, setTopic] = useState(initialTopic);
   const [difficulty, setDifficulty] = useState('medium');
+  const [numQuestions, setNumQuestions] = useState(5);
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState([]);
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [remainingSec, setRemainingSec] = useState(0);
+  const tickRef = useRef(null);
+  const autoSubmittedRef = useRef(false);
 
-  // Auto-generate if topic is supplied via URL (e.g. from LearnModal)
+  // Auto-generate if topic was supplied via URL (from LearnModal "Take a quiz")
   useEffect(() => {
     if (initialTopic && !quiz) {
-      // trigger generate on mount with the URL topic
       generateTopic(initialTopic);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Countdown timer
+  useEffect(() => {
+    if (!quiz || result) return;
+    autoSubmittedRef.current = false;
+    setRemainingSec(quiz.time_limit_seconds || quiz.questions.length * 60);
+    tickRef.current = setInterval(() => {
+      setRemainingSec((s) => {
+        if (s <= 1) {
+          clearInterval(tickRef.current);
+          if (!autoSubmittedRef.current) {
+            autoSubmittedRef.current = true;
+            submitAuto();
+          }
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(tickRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quiz, result]);
+
   const generateTopic = async (t) => {
     if (!t.trim()) return;
     setError(''); setResult(null); setQuiz(null); setLoading(true);
     try {
-      const { data } = await api.post('/quiz/generate', { topic: t.trim(), difficulty });
+      const { data } = await api.post('/quiz/generate', {
+        topic: t.trim(), difficulty, num_questions: numQuestions,
+      });
       setQuiz(data);
       setAnswers(new Array(data.questions.length).fill(-1));
     } catch (e) {
@@ -40,20 +76,58 @@ export default function Quiz() {
   const generate = () => generateTopic(topic);
 
   const submit = async () => {
+    if (tickRef.current) clearInterval(tickRef.current);
     setLoading(true);
     try {
-      const { data } = await api.post('/quiz/submit', { quiz_id: quiz.quiz_id, answers });
+      const { data } = await api.post('/quiz/submit', {
+        quiz_id: quiz.quiz_id, answers,
+      });
       setResult(data);
     } catch (e) {
       setError(e?.response?.data?.detail || 'Submit failed');
     } finally { setLoading(false); }
   };
 
+  const submitAuto = async () => {
+    // Snapshot current answers (or -1 for unanswered) and submit
+    try {
+      const { data } = await api.post('/quiz/submit', {
+        quiz_id: quiz.quiz_id, answers,
+      });
+      setResult({ ...data, timed_out: true });
+    } catch (e) {
+      setError(e?.response?.data?.detail || 'Auto-submit failed');
+    }
+  };
+
+  const timeLow = quiz && !result && remainingSec <= 30;
+
   return (
     <AppLayout>
-      <div className="mb-8">
-        <div className="label">Quiz</div>
-        <h1 className="text-4xl font-semibold mt-1">Test what you know.</h1>
+      <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="label">Quiz</div>
+          <h1 className="text-4xl font-semibold mt-1">Test what you know.</h1>
+        </div>
+        {quiz && !result && (
+          <div
+            data-testid="quiz-timer"
+            className="card"
+            style={{
+              padding: '10px 18px', display: 'flex', alignItems: 'center', gap: 8,
+              background: timeLow ? '#FCEFEA' : 'var(--surface)',
+              borderColor: timeLow ? 'var(--terracotta)' : 'var(--line)',
+              transition: 'all 0.3s',
+            }}
+          >
+            <Clock size={18} color={timeLow ? 'var(--terracotta)' : 'var(--brand)'} weight="fill" />
+            <span style={{
+              fontFamily: 'Outfit', fontSize: 22, fontWeight: 600,
+              color: timeLow ? 'var(--terracotta)' : 'var(--brand)',
+              fontVariantNumeric: 'tabular-nums',
+            }}>{formatMMSS(remainingSec)}</span>
+          </div>
+        )}
       </div>
 
       {!quiz && (
@@ -66,6 +140,28 @@ export default function Quiz() {
             onChange={(e) => setTopic(e.target.value)}
             data-testid={APP.quizTopicInput}
           />
+
+          <label className="label">Number of questions</label>
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {[5, 10, 15, 20].map((n) => (
+              <button
+                key={n}
+                onClick={() => setNumQuestions(n)}
+                data-testid={`quiz-num-${n}`}
+                className="px-4 py-2 rounded-full text-sm"
+                style={{
+                  background: numQuestions === n ? 'var(--brand)' : 'var(--surface-2)',
+                  color: numQuestions === n ? 'white' : 'var(--text)',
+                  border: '1px solid var(--line)',
+                }}
+              >{n} questions</button>
+            ))}
+          </div>
+          <p className="text-xs mb-5" style={{ color: 'var(--text-muted)' }}>
+            <Clock size={12} className="inline mr-1" />
+            You'll have <strong>{numQuestions} minute{numQuestions > 1 ? 's' : ''}</strong> total (1 min/question).
+          </p>
+
           <label className="label">Difficulty</label>
           <div className="flex gap-2 mb-6">
             {['easy', 'medium', 'hard'].map((d) => (
@@ -86,7 +182,9 @@ export default function Quiz() {
             onClick={generate} disabled={loading || !topic.trim()}
             className="btn btn-primary" data-testid={APP.quizGenerateBtn}
           >
-            {loading ? 'Generating…' : 'Generate quiz'}
+            {loading ? 'Generating…' : (
+              <>Generate quiz <ArrowRight size={14} weight="bold" /></>
+            )}
           </button>
         </div>
       )}
@@ -95,7 +193,7 @@ export default function Quiz() {
         <div className="grid gap-6 stagger">
           {quiz.questions.map((q, i) => (
             <div key={q.question} className="card">
-              <div className="label">Question {i + 1}</div>
+              <div className="label">Question {i + 1} of {quiz.questions.length}</div>
               <h3 className="text-lg font-medium mb-4" style={{ fontFamily: 'Outfit' }}>{q.question}</h3>
               <div className="grid gap-2">
                 {q.options.map((opt, j) => {
@@ -133,12 +231,17 @@ export default function Quiz() {
       {result && (
         <div className="fade-in">
           <div className="card mb-6">
-            <div className="label">Result</div>
+            <div className="label">Result {result.timed_out && '— time ran out'}</div>
             <div className="text-5xl font-semibold mb-2"
                  style={{ fontFamily: 'Outfit', color: 'var(--brand)' }}>
               {result.score}%
             </div>
-            <p style={{ color: 'var(--text-muted)' }}>{result.correct} of {result.total} correct</p>
+            <p style={{ color: 'var(--text-muted)' }}>
+              {result.correct} of {result.total} correct
+              {result.timed_out && <span style={{ color: 'var(--terracotta)', marginLeft: 8 }}>
+                · auto-submitted at timeout
+              </span>}
+            </p>
           </div>
           <div className="grid gap-4">
             {result.results.map((r) => (
@@ -161,8 +264,7 @@ export default function Quiz() {
                     else if (isWrongPick) prefix = '✗ ';
                     return (
                       <div key={`${r.question}-${opt}`} style={{
-                        color,
-                        fontWeight: isCorrect ? 600 : 400,
+                        color, fontWeight: isCorrect ? 600 : 400,
                       }}>
                         {prefix}{opt}
                       </div>
@@ -177,12 +279,17 @@ export default function Quiz() {
               </div>
             ))}
           </div>
-          <button
-            className="btn btn-outline mt-6"
-            onClick={() => { setQuiz(null); setResult(null); setAnswers([]); setTopic(''); }}
-          >
-            Try another topic
-          </button>
+          <div className="flex gap-3 mt-6 flex-wrap">
+            <button
+              className="btn btn-outline"
+              onClick={() => { setQuiz(null); setResult(null); setAnswers([]); setTopic(''); }}
+            >
+              Try another topic
+            </button>
+            <button className="btn btn-primary" onClick={() => navigate('/roadmap')}>
+              <Sparkle size={14} weight="fill" /> Back to roadmap
+            </button>
+          </div>
         </div>
       )}
     </AppLayout>
