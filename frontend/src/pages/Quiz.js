@@ -136,17 +136,24 @@ export default function Quiz() {
                   <h3 className="font-medium flex-1" style={{ fontFamily: 'Outfit' }}>{r.question}</h3>
                 </div>
                 <div className="ml-7 grid gap-1 text-sm">
-                  {r.options.map((opt, j) => (
-                    <div key={`${r.question}-${opt}`} style={{
-                      color: j === r.correct_index ? 'var(--primary)' :
-                             j === r.your_index && !r.is_correct ? 'var(--terracotta)' :
-                             'var(--muted)',
-                      fontWeight: j === r.correct_index ? 600 : 400,
-                    }}>
-                      {j === r.correct_index ? '✓ ' : j === r.your_index && !r.is_correct ? '✗ ' : '   '}
-                      {opt}
-                    </div>
-                  ))}
+                  {r.options.map((opt, j) => {
+                    const isCorrect = j === r.correct_index;
+                    const isWrongPick = j === r.your_index && !r.is_correct;
+                    let color = 'var(--muted)';
+                    if (isCorrect) color = 'var(--primary)';
+                    else if (isWrongPick) color = 'var(--terracotta)';
+                    let prefix = '   ';
+                    if (isCorrect) prefix = '✓ ';
+                    else if (isWrongPick) prefix = '✗ ';
+                    return (
+                      <div key={`${r.question}-${opt}`} style={{
+                        color,
+                        fontWeight: isCorrect ? 600 : 400,
+                      }}>
+                        {prefix}{opt}
+                      </div>
+                    );
+                  })}
                   {r.explanation && (
                     <div className="mt-2 italic" style={{ color: 'var(--muted)' }}>
                       {r.explanation}
