@@ -59,17 +59,11 @@ export default function Interview() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iv?.status]);
 
-  // Auto-speak the latest interviewer message via TTS
-  useEffect(() => {
-    if (!iv?.messages?.length || !audioOn) return;
-    const lastIdx = iv.messages.length - 1;
-    const last = iv.messages[lastIdx];
-    if (last.role !== 'interviewer') return;
-    if (spokenIndexRef.current >= lastIdx) return;
-    spokenIndexRef.current = lastIdx;
-    speakText(last.content);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [iv, audioOn]);
+  // We previously used an effect to auto-speak — but browsers block audio
+  // playback that isn't tightly tied to a user gesture. Instead we now
+  // call speakText() directly from `start` and `sendText` (both triggered
+  // by user clicks), and expose a manual "Play question" button as a
+  // fallback so the user can always trigger playback.
 
   // Cleanup audio on unmount
   useEffect(() => {
@@ -80,24 +74,44 @@ export default function Interview() {
   }, []);
 
   const speakText = async (text) => {
+    if (!audioOn) return;
     try {
       setSpeaking(true);
+      // Stop any currently playing audio first
+      if (audioRef.current) { try { audioRef.current.pause(); } catch (_) {} }
       const res = await fetch(`${API_BASE}/interview/speak`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       });
-      if (!res.ok) throw new Error('TTS failed');
+      if (!res.ok) throw new Error('TTS request failed');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioRef.current = audio;
       audio.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); };
       audio.onerror = () => { setSpeaking(false); URL.revokeObjectURL(url); };
-      await audio.play().catch(() => { setSpeaking(false); });
-    } catch (_) {
+      try {
+        await audio.play();
+      } catch (err) {
+        // Browser blocked autoplay — user can hit the "Play question" button
+        console.warn('Audio autoplay blocked:', err?.message);
+        setSpeaking(false);
+        setError('Tap the 🔊 button to hear the question (your browser blocked autoplay).');
+      }
+    } catch (e) {
+      console.error('TTS failed:', e);
       setSpeaking(false);
+    }
+  };
+
+  const replayLastQuestion = () => {
+    if (!iv?.messages?.length) return;
+    const lastInterviewer = [...iv.messages].reverse().find((m) => m.role === 'interviewer');
+    if (lastInterviewer) {
+      setError('');
+      speakText(lastInterviewer.content);
     }
   };
 
@@ -108,6 +122,12 @@ export default function Interview() {
       const { data } = await api.post('/interview/start', { focus });
       setIv(data);
       setRemainingSec(data.time_limit_seconds || 480);
+      // Speak the opener immediately — still within the same click-driven flow
+      const opener = data.messages?.[data.messages.length - 1];
+      if (opener && opener.role === 'interviewer') {
+        spokenIndexRef.current = data.messages.length - 1;
+        speakText(opener.content);
+      }
     } catch (e) {
       setError(e?.response?.data?.detail || 'Could not start interview');
     } finally { setBusy(false); }
@@ -119,6 +139,12 @@ export default function Interview() {
     try {
       const { data } = await api.post('/interview/reply', { interview_id: iv.interview_id, message: text.trim() });
       setIv({ ...iv, ...data });
+      // Speak the latest interviewer reply (also user-gesture driven via stop-recording)
+      const last = data.messages?.[data.messages.length - 1];
+      if (last && last.role === 'interviewer' && data.messages.length - 1 > spokenIndexRef.current) {
+        spokenIndexRef.current = data.messages.length - 1;
+        speakText(last.content);
+      }
     } catch (e) {
       setError(e?.response?.data?.detail || 'Send failed');
     } finally { setBusy(false); }
@@ -321,6 +347,16 @@ export default function Interview() {
 
           {iv.status === 'ongoing' && (
             <div className="flex flex-col items-center gap-3 py-4">
+              {/* Replay-question fallback — visible when audio is blocked */}
+              <button
+                onClick={replayLastQuestion}
+                data-testid="interview-replay-question"
+                className="btn btn-outline"
+                style={{ fontSize: 13 }}
+              >
+                <SpeakerHigh size={14} weight="fill" /> Play question aloud
+              </button>
+
               <button
                 onClick={recording ? stopRecording : startRecording}
                 disabled={busy || transcribing || speaking}
