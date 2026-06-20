@@ -1,0 +1,79 @@
+{
+  "theme": "LIGHT",
+  "archetype": "Organic & Earthy",
+  "domain_context": "Career Mentor, Learning, Tech Coaching",
+  "typography": {
+    "headings": "Outfit, sans-serif",
+    "body": "Work Sans, sans-serif",
+    "scale": {
+      "h1": "text-4xl sm:text-5xl tracking-tight leading-tight font-semibold",
+      "h2": "text-2xl sm:text-3xl tracking-tight font-medium",
+      "h3": "text-xl sm:text-2xl font-medium",
+      "h4": "text-lg sm:text-xl font-medium",
+      "body": "text-base leading-relaxed",
+      "small": "text-sm",
+      "labels": "text-xs uppercase tracking-[0.2em] font-semibold"
+    },
+    "rules": "Never use Inter. Use tracking-tight on headings. Ensure high contrast for all text."
+  },
+  "colors": {
+    "background": "#F9F8F6",
+    "surface_primary": "#FFFFFF",
+    "surface_secondary": "#F0EFEA",
+    "primary": "#2C5545",
+    "primary_hover": "#3D705C",
+    "accent_sage": "#8EA696",
+    "accent_terracotta": "#C86B53",
+    "accent_ochre": "#DDA77B",
+    "text_main": "#1A1C1A",
+    "text_muted": "#646F68",
+    "border": "#E5E4DE",
+    "rules": "Avoid purple and teal completely. Rely on the terracotta and deep green for CTA and gamification (streaks). Use sage for low-emphasis backgrounds like bot chat bubbles."
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous Spacing Philosophy with dense functional grids where necessary.",
+    "container_padding": "p-6 md:p-8 lg:p-12",
+    "card_padding": "p-6 or p-8",
+    "dashboard_grid": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+    "alignment": "Left-align forms and dense content. Optical alignment over geometrical.",
+    "rules": "Mobile-first responsive. Containers with borders MUST have internal padding (p-6) to prevent text collision. Use grid-cols-1 on mobile."
+  },
+  "components": {
+    "buttons": "Rounded-lg or rounded-full. Solid primary background for CTAs. Use terracotta for high-impact actions like 'Start Interview'. Explicit hover states required.",
+    "cards": "Flat background (surface_primary), 1px subtle border (border), no deep shadow. On hover for interactive cards: slight lift (-translate-y-1) and soft ambient shadow.",
+    "forms": "Use Shadcn customized inputs. Background surface_secondary, 1px border. Focus ring in primary color.",
+    "navigation": "Sidebar for dashboard (compact, muted earthy accents). Sticky top nav for onboarding with solid background.",
+    "chat_interface": "Bot bubbles: surface_secondary with text_main. User bubbles: primary with white text. High contrast, clear placeholder text, subtle typing indicators. No flashing.",
+    "gamification": "Skill tree uses primary green for completed nodes, border-only for locked. Streak uses terracotta color and flame/leaf icon.",
+    "testing_requirements": "All interactive elements MUST have data-testid (e.g., data-testid='start-interview-btn', data-testid='quiz-option-1')."
+  },
+  "motion_and_interactions": {
+    "hover": "Explicit text color changes, subtle transform (lift).",
+    "chat": "Smooth staggered entrance for chat messages.",
+    "transitions": "transition: transform 0.2s ease, opacity 0.2s ease"
+  },
+  "icons_and_assets": {
+    "library": "@phosphor-icons/react",
+    "installation": "yarn add @phosphor-icons/react",
+    "image_urls": [
+      {
+        "url": "https://images.unsplash.com/photo-1654356709115-3f68998bead4?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MjJ8MHwxfHNlYXJjaHwyfHxjYWxtJTIwc3R1ZHklMjBkZXNrJTIwbW9ybmluZyUyMHN1bmxpZ2h0fGVufDB8fHx8MTc4MTkzOTIyM3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Calm study desk with morning sunlight",
+        "category": "onboarding_hero_background"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1600340053706-32d1278206ef?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA4Mzl8MHwxfHNlYXJjaHwxfHxncmVlbiUyMGZvcmVzdCUyMHBhdGglMjBzdW5saWdodHxlbnwwfHx8fDE3ODE5MzkyMjN8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Green forest path with sunlight filtering through",
+        "category": "roadmap_journey_visual"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Ensure all components are implemented in .js, not .tsx.",
+    "Strictly adhere to the Organic & Earthy archetype colors. DO NOT use generic SaaS blue or purple.",
+    "For the dashboard, use a dense 'Control Room' grid layout but maintain generous padding inside cards (minimum p-6) to avoid text collision.",
+    "For the AI Mock Interview screen, avoid a stressful timer-heavy look. Use the chat_interface guidelines to create a calm, mentor-like conversation flow.",
+    "Gamification elements (Streak, Skill Tree) should use Terracotta and Forest Green accents. Avoid neon or vibrating colors.",
+    "Always apply data-testid to buttons, inputs, links, and forms for testing."
+  ]
+}
