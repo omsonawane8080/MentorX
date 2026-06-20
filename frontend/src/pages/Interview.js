@@ -83,8 +83,8 @@ export default function Interview() {
             className="card flex flex-col gap-3"
             style={{ minHeight: 360, maxHeight: 480, overflowY: 'auto' }}
           >
-            {iv.messages.map((m, i) => (
-              <div key={i} className={`bubble ${m.role === 'candidate' ? 'bubble-user' : 'bubble-bot'} fade-in`}>
+            {iv.messages.map((m) => (
+              <div key={`${m.role}-${m.ts}`} className={`bubble ${m.role === 'candidate' ? 'bubble-user' : 'bubble-bot'} fade-in`}>
                 {m.content}
               </div>
             ))}

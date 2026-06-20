@@ -29,7 +29,9 @@ export const AuthProvider = ({ children }) => {
   }, [checkAuth]);
 
   const logout = async () => {
-    try { await api.post('/auth/logout'); } catch (_) { /* ignore */ }
+    try { await api.post('/auth/logout'); } catch (err) {
+      console.warn('Logout request failed (server may already have cleared session):', err?.message || err);
+    }
     setUser(null);
   };
 

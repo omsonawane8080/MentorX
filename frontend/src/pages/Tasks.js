@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import api from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import { APP } from '@/constants/testIds';
@@ -10,7 +10,7 @@ export default function Tasks() {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const { data } = await api.get('/tasks/today');
@@ -20,9 +20,9 @@ export default function Tasks() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const complete = async (task_id) => {
     setBusyId(task_id);
@@ -30,7 +30,8 @@ export default function Tasks() {
       const { data } = await api.post('/tasks/complete', { task_id });
       setDoc(data);
     } catch (e) {
-      // ignore
+      console.error('Task complete failed:', e?.response?.data?.detail || e?.message);
+      setError(e?.response?.data?.detail || 'Could not mark task complete');
     } finally {
       setBusyId(null);
     }

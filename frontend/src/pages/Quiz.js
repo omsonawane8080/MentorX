@@ -80,7 +80,7 @@ export default function Quiz() {
       {quiz && !result && (
         <div className="grid gap-6 stagger">
           {quiz.questions.map((q, i) => (
-            <div key={i} className="card">
+            <div key={q.question} className="card">
               <div className="label">Question {i + 1}</div>
               <h3 className="text-lg font-medium mb-4" style={{ fontFamily: 'Outfit' }}>{q.question}</h3>
               <div className="grid gap-2">
@@ -88,7 +88,7 @@ export default function Quiz() {
                   const selected = answers[i] === j;
                   return (
                     <button
-                      key={j}
+                      key={`${q.question}-${opt}`}
                       data-testid={`${APP.quizOption}-${i}-${j}`}
                       onClick={() => {
                         const next = [...answers]; next[i] = j; setAnswers(next);
@@ -127,8 +127,8 @@ export default function Quiz() {
             <p style={{ color: 'var(--muted)' }}>{result.correct} of {result.total} correct</p>
           </div>
           <div className="grid gap-4">
-            {result.results.map((r, i) => (
-              <div key={i} className="card">
+            {result.results.map((r) => (
+              <div key={r.question} className="card">
                 <div className="flex items-start gap-2 mb-2">
                   {r.is_correct
                     ? <CheckCircle size={20} color="var(--primary)" weight="fill" />
@@ -137,7 +137,7 @@ export default function Quiz() {
                 </div>
                 <div className="ml-7 grid gap-1 text-sm">
                   {r.options.map((opt, j) => (
-                    <div key={j} style={{
+                    <div key={`${r.question}-${opt}`} style={{
                       color: j === r.correct_index ? 'var(--primary)' :
                              j === r.your_index && !r.is_correct ? 'var(--terracotta)' :
                              'var(--muted)',

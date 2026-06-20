@@ -49,8 +49,8 @@ export default function Roadmap() {
               <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>{p.focus}</p>
               <div className="label">Topics</div>
               <ul className="mb-4">
-                {(p.topics || []).map((t, k) => (
-                  <li key={k} className="flex items-center gap-2 py-1 text-sm">
+                {(p.topics || []).map((t) => (
+                  <li key={`p${p.month}-${t}`} className="flex items-center gap-2 py-1 text-sm">
                     <Circle size={14} color="var(--sage)" weight="duotone" /> {t}
                   </li>
                 ))}
@@ -64,7 +64,7 @@ export default function Roadmap() {
                 <>
                   <div className="label">Resources</div>
                   <div className="flex flex-wrap gap-2">
-                    {p.resources.map((r, k) => <span key={k} className="chip">{r}</span>)}
+                    {p.resources.map((r) => <span key={`p${p.month}-r-${r}`} className="chip">{r}</span>)}
                   </div>
                 </>
               )}
