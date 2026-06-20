@@ -843,6 +843,45 @@ async def mentor_review_endpoint(user: User = Depends(get_current_user)):
     return review
 
 
+@api.post("/onboarding/parse-resume")
+async def parse_resume(resume: UploadFile = File(...), user: User = Depends(get_current_user)):
+    """Accept PDF/text resume, return a 2-4 sentence background summary."""
+    raw = await resume.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty file")
+    if len(raw) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 8MB)")
+
+    filename = (resume.filename or "").lower()
+    text = ""
+    if filename.endswith(".pdf") or (resume.content_type or "").endswith("pdf"):
+        try:
+            from pypdf import PdfReader
+            reader = PdfReader(BytesIO(raw))
+            text = "\n".join((p.extract_text() or "") for p in reader.pages)
+        except Exception as e:
+            logger.exception("PDF parsing failed")
+            raise HTTPException(status_code=400, detail=f"Could not read PDF: {e}")
+    else:
+        # plain text / txt / md / docx-as-text fallback
+        try:
+            text = raw.decode("utf-8", errors="ignore")
+        except Exception:
+            raise HTTPException(status_code=400, detail="Unsupported file type — upload a PDF or .txt")
+
+    text = text.strip()
+    if len(text) < 30:
+        raise HTTPException(status_code=400, detail="Could not extract enough text from your resume")
+
+    try:
+        summary = await agents.summarize_resume(text)
+    except Exception as e:
+        logger.exception("Resume summarization failed")
+        raise HTTPException(status_code=502, detail=f"Summarization failed: {e}")
+
+    return {"background": summary, "characters_extracted": len(text)}
+
+
 @api.get("/health")
 async def health():
     return {"ok": True}

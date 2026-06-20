@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '@/lib/api';
+import api, { API_BASE } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { APP } from '@/constants/testIds';
-import { Sparkle, ArrowLeft, ArrowRight, Plant, TreeStructure, Mountains } from '@phosphor-icons/react';
+import { Sparkle, ArrowLeft, ArrowRight, Plant, TreeStructure, Mountains, UploadSimple, FilePdf, CheckCircle } from '@phosphor-icons/react';
 
 const ROLE_SUGGESTIONS = [
   'AI/ML Engineer', 'GenAI Engineer', 'Data Scientist', 'Data Engineer',
@@ -40,10 +40,39 @@ export default function Onboarding() {
   const [timeline, setTimeline] = useState(3);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resumeName, setResumeName] = useState('');
+  const [resumeParsing, setResumeParsing] = useState(false);
+  const [resumeDone, setResumeDone] = useState(false);
+  const fileInputRef = useRef(null);
   const navigate = useNavigate();
   const { checkAuth } = useAuth();
 
   const isValid = targetRole.trim().length >= 3 && background.trim().length >= 10;
+
+  const handleResumeUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(''); setResumeDone(false); setResumeParsing(true); setResumeName(file.name);
+    try {
+      const fd = new FormData();
+      fd.append('resume', file);
+      const res = await fetch(`${API_BASE}/onboarding/parse-resume`, {
+        method: 'POST', credentials: 'include', body: fd,
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.detail || 'Could not parse resume');
+      }
+      const { background: summary } = await res.json();
+      setBackground(summary || '');
+      setResumeDone(true);
+    } catch (err) {
+      setError(err.message || 'Resume upload failed');
+      setResumeName('');
+    } finally {
+      setResumeParsing(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e?.preventDefault?.();
@@ -178,20 +207,59 @@ export default function Onboarding() {
               </div>
             </div>
 
-            {/* 3. Background */}
+            {/* 3. Background — with optional Resume upload */}
             <div>
-              <label className="label">3. Your background</label>
+              <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+                <label className="label" style={{ marginBottom: 0 }}>3. Your background</label>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={resumeParsing}
+                  data-testid="onboard-upload-resume-btn"
+                  style={{
+                    background: 'transparent', border: '1px dashed var(--line)',
+                    borderRadius: 999, padding: '4px 12px',
+                    fontSize: 12, color: 'var(--brand)', cursor: 'pointer',
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                  }}
+                >
+                  {resumeParsing
+                    ? <><Sparkle size={12} weight="fill" /> Reading your resume…</>
+                    : resumeDone
+                    ? <><CheckCircle size={12} weight="fill" color="var(--brand)" /> Resume imported · re-upload</>
+                    : <><UploadSimple size={12} /> Upload resume (PDF) — auto-fill</>}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.txt,application/pdf"
+                  onChange={handleResumeUpload}
+                  style={{ display: 'none' }}
+                  data-testid="onboard-resume-file"
+                />
+              </div>
+              {resumeName && !resumeParsing && (
+                <div style={{
+                  fontSize: 11, color: 'var(--text-muted)',
+                  marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <FilePdf size={12} /> {resumeName}
+                </div>
+              )}
               <textarea
                 className="textarea"
                 placeholder="e.g. Final-year CSE student. Comfortable with Python and basic ML. Built a small React app."
                 value={background}
-                onChange={(e) => setBackground(e.target.value)}
+                onChange={(e) => { setBackground(e.target.value); setResumeDone(false); }}
                 data-testid={APP.onboardBackground}
-                rows={3}
-                style={{ minHeight: 80 }}
+                rows={4}
+                style={{ minHeight: 96 }}
               />
               <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                 {background.length} characters {background.length > 0 && background.length < 10 && '— need at least 10'}
+                {resumeDone && background.length >= 10 && (
+                  <span style={{ color: 'var(--brand)', marginLeft: 8 }}>· auto-filled from your resume — edit if needed</span>
+                )}
               </div>
             </div>
 

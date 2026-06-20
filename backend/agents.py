@@ -303,3 +303,31 @@ LEARNER'S NEW QUESTION:
 
 Reply as their personal AI mentor. Be specific, friendly, and practical."""
     return await _ask_text(*GEMINI_FAST, f"mentor-chat-{uuid.uuid4()}", MENTOR_CHAT_SYSTEM, prompt)
+
+
+# ---------------------------------------------------------------------------
+# Resume parser — extract a short, mentor-ready background summary
+# ---------------------------------------------------------------------------
+RESUME_SYSTEM = """You are an expert resume reader for an AI career mentor app.
+You read raw resume text and produce a SHORT background summary
+(2-4 sentences) capturing the candidate's experience, technical skills,
+and notable projects. The summary is used to personalize their roadmap.
+Respond with plain text only — no markdown, no bullet symbols."""
+
+
+async def summarize_resume(raw_text: str) -> str:
+    text = raw_text.strip()
+    if len(text) > 8000:
+        text = text[:8000]
+    prompt = f"""Read this resume text and produce a 2-4 sentence background
+summary suitable for a learner's profile. Focus on:
+- Current role/year/student status
+- Top 3-5 technical skills (languages, frameworks, tools)
+- 1-2 notable projects or achievements
+- Any specialization (ML, web, mobile, etc.)
+
+Write in the FIRST PERSON ("I am...", "I built..."). No markdown.
+
+RESUME TEXT:
+{text}"""
+    return (await _ask_text(*GEMINI_FAST, f"resume-{uuid.uuid4()}", RESUME_SYSTEM, prompt)).strip()
