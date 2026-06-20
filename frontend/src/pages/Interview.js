@@ -88,7 +88,7 @@ export default function Interview() {
                 {m.content}
               </div>
             ))}
-            {busy && <div className="bubble bubble-bot fade-in" style={{ color: 'var(--muted)' }}>typing…</div>}
+            {busy && <div className="bubble bubble-bot fade-in" style={{ color: 'var(--text-muted)' }}>typing…</div>}
           </div>
 
           {iv.status === 'ongoing' && (
@@ -125,8 +125,8 @@ export default function Interview() {
             <div className="card fade-in">
               <div className="label">Evaluation</div>
               <div className="text-5xl font-semibold mb-3"
-                   style={{ fontFamily: 'Outfit', color: 'var(--primary)' }}>
-                {evaluation.overall_score}<span className="text-xl" style={{ color: 'var(--muted)' }}>/100</span>
+                   style={{ fontFamily: 'Outfit', color: 'var(--brand)' }}>
+                {evaluation.overall_score}<span className="text-xl" style={{ color: 'var(--text-muted)' }}>/100</span>
               </div>
               <p className="mb-4">{evaluation.summary}</p>
 
@@ -146,7 +146,7 @@ export default function Interview() {
                 {evaluation.per_answer?.map((p, i) => (
                   <div key={i} className="p-4 rounded-lg" style={{ background: 'var(--surface-2)' }}>
                     <div className="text-sm font-medium mb-1">{p.question}</div>
-                    <div className="text-sm mb-2" style={{ color: 'var(--muted)' }}>"{p.candidate_answer}"</div>
+                    <div className="text-sm mb-2" style={{ color: 'var(--text-muted)' }}>"{p.candidate_answer}"</div>
                     <div className="flex gap-2 items-center">
                       <span className="chip">Score: {p.score}/10</span>
                       <span className="text-sm">{p.feedback}</span>

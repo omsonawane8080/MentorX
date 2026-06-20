@@ -20,7 +20,7 @@ export default function Landing() {
       <header className="max-w-6xl mx-auto px-6 md:px-10 pt-8 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-               style={{ background: 'var(--primary)' }}>
+               style={{ background: 'var(--brand)' }}>
             <Leaf size={20} color="white" weight="duotone" />
           </div>
           <span className="font-semibold" style={{ fontFamily: 'Outfit' }}>Mentor</span>
@@ -46,7 +46,7 @@ export default function Landing() {
             A mentor that <span className="gradient-text">remembers</span> you —<br />
             not a chatbot that forgets.
           </h1>
-          <p className="text-lg max-w-xl mb-8" style={{ color: 'var(--muted)' }}>
+          <p className="text-lg max-w-xl mb-8" style={{ color: 'var(--text-muted)' }}>
             Tell us your target role and timeline. We'll generate a roadmap,
             give you daily tasks, quiz you on what matters, and run mock interviews
             with real feedback. Designed for students and career switchers.
@@ -61,7 +61,7 @@ export default function Landing() {
             </button>
             <a href="#features" className="btn btn-ghost">See how it works</a>
           </div>
-          <div className="flex gap-6 mt-10 text-sm" style={{ color: 'var(--muted)' }}>
+          <div className="flex gap-6 mt-10 text-sm" style={{ color: 'var(--text-muted)' }}>
             <div><strong style={{ color: 'var(--text)' }}>Free</strong> to try</div>
             <div><strong style={{ color: 'var(--text)' }}>1 min</strong> to onboard</div>
             <div><strong style={{ color: 'var(--text)' }}>Adaptive</strong> daily plan</div>
@@ -92,19 +92,19 @@ export default function Landing() {
           {features.map(({ icon: Icon, title, text }) => (
             <div key={title} className="card card-hover">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-4"
-                   style={{ background: 'var(--surface-2)', color: 'var(--primary)' }}>
+                   style={{ background: 'var(--surface-2)', color: 'var(--brand)' }}>
                 <Icon size={20} weight="duotone" />
               </div>
               <div className="font-medium mb-2" style={{ fontFamily: 'Outfit' }}>{title}</div>
-              <div className="text-sm" style={{ color: 'var(--muted)' }}>{text}</div>
+              <div className="text-sm" style={{ color: 'var(--text-muted)' }}>{text}</div>
             </div>
           ))}
         </div>
       </section>
 
-      <footer className="border-t" style={{ borderColor: 'var(--border)' }}>
+      <footer className="border-t" style={{ borderColor: 'var(--line)' }}>
         <div className="max-w-6xl mx-auto px-6 md:px-10 py-6 text-sm flex justify-between"
-             style={{ color: 'var(--muted)' }}>
+             style={{ color: 'var(--text-muted)' }}>
           <span>© Mentor — your AI career coach</span>
           <span>Built with calm focus.</span>
         </div>

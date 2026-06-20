@@ -15,7 +15,7 @@ export default function Roadmap() {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <AppLayout><div style={{ color: 'var(--muted)' }}>Loading roadmap…</div></AppLayout>;
+  if (loading) return <AppLayout><div style={{ color: 'var(--text-muted)' }}>Loading roadmap…</div></AppLayout>;
   if (error) return <AppLayout><div className="card" style={{ color: 'var(--terracotta)' }}>{error}</div></AppLayout>;
 
   const data = doc.data;
@@ -34,11 +34,11 @@ export default function Roadmap() {
       </div>
 
       <div className="relative pl-8 stagger">
-        <div className="absolute left-3 top-2 bottom-2 w-px" style={{ background: 'var(--border)' }} />
+        <div className="absolute left-3 top-2 bottom-2 w-px" style={{ background: 'var(--line)' }} />
         {(data.phases || []).map((p) => (
           <div key={`phase-${p.month}`} className="mb-8 relative">
             <div className="absolute -left-8 top-1 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold"
-                 style={{ background: 'var(--primary)', color: 'white' }}>
+                 style={{ background: 'var(--brand)', color: 'white' }}>
               {p.month}
             </div>
             <div className="card card-hover">
@@ -46,7 +46,7 @@ export default function Roadmap() {
                 <h3 className="text-xl font-medium" style={{ fontFamily: 'Outfit' }}>{p.title}</h3>
                 <span className="chip"><MapPin size={12} /> Month {p.month}</span>
               </div>
-              <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>{p.focus}</p>
+              <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>{p.focus}</p>
               <div className="label">Topics</div>
               <ul className="mb-4">
                 {(p.topics || []).map((t) => (

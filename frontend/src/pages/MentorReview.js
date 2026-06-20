@@ -24,7 +24,7 @@ export default function MentorReview() {
       <div className="mb-8">
         <div className="label">Mentor review</div>
         <h1 className="text-4xl font-semibold mt-1">Get an honest pulse check.</h1>
-        <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
+        <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
           Your AI mentor reviews everything — tasks, quizzes, interviews — and gives you a readiness score with honest next steps.
         </p>
       </div>
@@ -42,8 +42,8 @@ export default function MentorReview() {
           <div className="card">
             <div className="label">Readiness</div>
             <div className="text-6xl font-semibold mb-3"
-                 style={{ fontFamily: 'Outfit', color: 'var(--primary)' }}>
-              {review.readiness_score}<span className="text-xl" style={{ color: 'var(--muted)' }}>/100</span>
+                 style={{ fontFamily: 'Outfit', color: 'var(--brand)' }}>
+              {review.readiness_score}<span className="text-xl" style={{ color: 'var(--text-muted)' }}>/100</span>
             </div>
             <p>{review.summary}</p>
           </div>

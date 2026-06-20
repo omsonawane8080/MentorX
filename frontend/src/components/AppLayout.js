@@ -29,16 +29,16 @@ export default function AppLayout({ children }) {
     <div className="min-h-screen flex" style={{ background: 'var(--bg)' }}>
       <aside
         className="hidden md:flex flex-col gap-2 p-6 border-r"
-        style={{ width: 248, borderColor: 'var(--border)', background: 'var(--surface)' }}
+        style={{ width: 248, borderColor: 'var(--line)', background: 'var(--surface)' }}
       >
         <div className="flex items-center gap-2 mb-8">
           <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-               style={{ background: 'var(--primary)' }}>
+               style={{ background: 'var(--brand)' }}>
             <Leaf size={20} color="white" weight="duotone" />
           </div>
           <div>
             <div className="font-semibold" style={{ fontFamily: 'Outfit' }}>Mentor</div>
-            <div className="text-xs" style={{ color: 'var(--muted)' }}>Career Coach</div>
+            <div className="text-xs" style={{ color: 'var(--text-muted)' }}>Career Coach</div>
           </div>
         </div>
         <nav className="flex flex-col gap-1 flex-1">
@@ -52,7 +52,7 @@ export default function AppLayout({ children }) {
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors"
                 style={{
                   background: active ? 'var(--surface-2)' : 'transparent',
-                  color: active ? 'var(--primary)' : 'var(--text)',
+                  color: active ? 'var(--brand)' : 'var(--text)',
                   fontWeight: active ? 600 : 500,
                 }}
               >
@@ -62,7 +62,7 @@ export default function AppLayout({ children }) {
             );
           })}
         </nav>
-        <div className="pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+        <div className="pt-4 border-t" style={{ borderColor: 'var(--line)' }}>
           <div className="flex items-center gap-3 mb-3">
             {user?.picture ? (
               <img src={user.picture} alt="" className="w-9 h-9 rounded-full" />
@@ -72,7 +72,7 @@ export default function AppLayout({ children }) {
             )}
             <div className="text-sm overflow-hidden">
               <div className="truncate font-medium">{user?.name}</div>
-              <div className="truncate text-xs" style={{ color: 'var(--muted)' }}>{user?.email}</div>
+              <div className="truncate text-xs" style={{ color: 'var(--text-muted)' }}>{user?.email}</div>
             </div>
           </div>
           <button

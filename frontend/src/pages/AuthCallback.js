@@ -25,10 +25,10 @@ export default function AuthCallback() {
       try {
         const { data } = await api.post('/auth/session', { session_id: sessionId });
         setUser(data.user);
-        // strip the hash and go to dashboard (or onboarding if not done)
+        // Strip the hash and land on the dashboard. New users will see an
+        // onboarding CTA there; returning users see their full dashboard.
         window.history.replaceState({}, '', '/dashboard');
-        if (data.user?.onboarded) navigate('/dashboard', { state: { user: data.user } });
-        else navigate('/onboarding', { state: { user: data.user } });
+        navigate('/dashboard', { state: { user: data.user } });
       } catch (err) {
         console.error('Auth callback failed', err);
         navigate('/');
@@ -41,8 +41,8 @@ export default function AuthCallback() {
          style={{ background: 'var(--bg)' }}>
       <div className="text-center fade-in">
         <div className="w-10 h-10 mx-auto rounded-full border-2 animate-spin mb-4"
-             style={{ borderColor: 'var(--border)', borderTopColor: 'var(--primary)' }} />
-        <p style={{ color: 'var(--muted)' }}>Signing you in…</p>
+             style={{ borderColor: 'var(--line)', borderTopColor: 'var(--brand)' }} />
+        <p style={{ color: 'var(--text-muted)' }}>Signing you in…</p>
       </div>
     </div>
   );

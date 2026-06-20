@@ -11,14 +11,14 @@ import Quiz from '@/pages/Quiz';
 import Interview from '@/pages/Interview';
 import MentorReview from '@/pages/MentorReview';
 
-function Protected({ children, requireOnboarded = true }) {
+function Protected({ children, requireOnboarded = false }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center"
            style={{ background: 'var(--bg)' }}>
         <div className="w-10 h-10 rounded-full border-2 animate-spin"
-             style={{ borderColor: 'var(--border)', borderTopColor: 'var(--primary)' }} />
+             style={{ borderColor: 'var(--line)', borderTopColor: 'var(--brand)' }} />
       </div>
     );
   }
@@ -36,15 +36,13 @@ function AppRouter() {
   return (
     <Routes>
       <Route path="/" element={<Landing />} />
-      <Route path="/onboarding" element={
-        <Protected requireOnboarded={false}><Onboarding /></Protected>
-      } />
+      <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
       <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
-      <Route path="/roadmap" element={<Protected><Roadmap /></Protected>} />
-      <Route path="/tasks" element={<Protected><Tasks /></Protected>} />
-      <Route path="/quiz" element={<Protected><Quiz /></Protected>} />
-      <Route path="/interview" element={<Protected><Interview /></Protected>} />
-      <Route path="/mentor" element={<Protected><MentorReview /></Protected>} />
+      <Route path="/roadmap" element={<Protected requireOnboarded><Roadmap /></Protected>} />
+      <Route path="/tasks" element={<Protected requireOnboarded><Tasks /></Protected>} />
+      <Route path="/quiz" element={<Protected requireOnboarded><Quiz /></Protected>} />
+      <Route path="/interview" element={<Protected requireOnboarded><Interview /></Protected>} />
+      <Route path="/mentor" element={<Protected requireOnboarded><MentorReview /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

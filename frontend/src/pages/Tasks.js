@@ -37,7 +37,7 @@ export default function Tasks() {
     }
   };
 
-  if (loading) return <AppLayout><div style={{ color: 'var(--muted)' }}>Generating today's plan…</div></AppLayout>;
+  if (loading) return <AppLayout><div style={{ color: 'var(--text-muted)' }}>Generating today's plan…</div></AppLayout>;
   if (error) return <AppLayout><div className="card" style={{ color: 'var(--terracotta)' }}>{error}</div></AppLayout>;
 
   const done = doc.tasks.filter((t) => t.done).length;
@@ -49,7 +49,7 @@ export default function Tasks() {
       <div className="mb-8">
         <div className="label">Today · {doc.phase_title}</div>
         <h1 className="text-4xl font-semibold mt-1">Your daily tasks</h1>
-        <p className="mt-2 text-sm" style={{ color: 'var(--muted)' }}>
+        <p className="mt-2 text-sm" style={{ color: 'var(--text-muted)' }}>
           {done} of {total} done · {pct}% — keep the streak alive.
         </p>
         <div className="mt-3 h-2 rounded-full" style={{ background: 'var(--surface-2)', maxWidth: 360 }}>
@@ -75,8 +75,8 @@ export default function Tasks() {
               aria-label="Mark complete"
             >
               {t.done
-                ? <CheckCircle size={26} color="var(--primary)" weight="fill" />
-                : <Circle size={26} color="var(--muted)" weight="regular" />}
+                ? <CheckCircle size={26} color="var(--brand)" weight="fill" />
+                : <Circle size={26} color="var(--text-muted)" weight="regular" />}
             </button>
             <div className="flex-1">
               <div className="flex items-baseline justify-between gap-3 flex-wrap">
@@ -88,7 +88,7 @@ export default function Tasks() {
                 </h3>
                 <span className="chip"><Clock size={12} /> {t.estimated_minutes ?? 30} min</span>
               </div>
-              <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>{t.description}</p>
+              <p className="text-sm mt-1" style={{ color: 'var(--text-muted)' }}>{t.description}</p>
               <div className="flex gap-2 mt-3">
                 {t.topic && <span className="chip">{t.topic}</span>}
                 {t.kind && <span className="chip" style={{ textTransform: 'capitalize' }}>{t.kind}</span>}
@@ -99,11 +99,11 @@ export default function Tasks() {
       </div>
 
       {doc.all_done && (
-        <div className="card mt-8" style={{ background: 'var(--surface-2)', borderColor: 'var(--primary)' }}>
-          <h3 className="text-xl font-medium mb-1" style={{ fontFamily: 'Outfit', color: 'var(--primary)' }}>
+        <div className="card mt-8" style={{ background: 'var(--surface-2)', borderColor: 'var(--brand)' }}>
+          <h3 className="text-xl font-medium mb-1" style={{ fontFamily: 'Outfit', color: 'var(--brand)' }}>
             Day complete 🌱
           </h3>
-          <p className="text-sm" style={{ color: 'var(--muted)' }}>
+          <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
             Streak extended. Come back tomorrow — your next set will be ready.
           </p>
         </div>

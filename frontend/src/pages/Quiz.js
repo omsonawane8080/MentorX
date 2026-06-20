@@ -60,9 +60,9 @@ export default function Quiz() {
                 onClick={() => setDifficulty(d)}
                 className="px-4 py-2 rounded-full text-sm capitalize"
                 style={{
-                  background: difficulty === d ? 'var(--primary)' : 'var(--surface-2)',
+                  background: difficulty === d ? 'var(--brand)' : 'var(--surface-2)',
                   color: difficulty === d ? 'white' : 'var(--text)',
-                  border: '1px solid var(--border)',
+                  border: '1px solid var(--line)',
                 }}
               >{d}</button>
             ))}
@@ -95,9 +95,9 @@ export default function Quiz() {
                       }}
                       className="text-left px-4 py-3 rounded-lg transition-colors"
                       style={{
-                        background: selected ? 'var(--primary)' : 'var(--surface-2)',
+                        background: selected ? 'var(--brand)' : 'var(--surface-2)',
                         color: selected ? 'white' : 'var(--text)',
-                        border: '1px solid ' + (selected ? 'var(--primary)' : 'var(--border)'),
+                        border: '1px solid ' + (selected ? 'var(--brand)' : 'var(--line)'),
                       }}
                     >{opt}</button>
                   );
@@ -121,17 +121,17 @@ export default function Quiz() {
           <div className="card mb-6">
             <div className="label">Result</div>
             <div className="text-5xl font-semibold mb-2"
-                 style={{ fontFamily: 'Outfit', color: 'var(--primary)' }}>
+                 style={{ fontFamily: 'Outfit', color: 'var(--brand)' }}>
               {result.score}%
             </div>
-            <p style={{ color: 'var(--muted)' }}>{result.correct} of {result.total} correct</p>
+            <p style={{ color: 'var(--text-muted)' }}>{result.correct} of {result.total} correct</p>
           </div>
           <div className="grid gap-4">
             {result.results.map((r) => (
               <div key={r.question} className="card">
                 <div className="flex items-start gap-2 mb-2">
                   {r.is_correct
-                    ? <CheckCircle size={20} color="var(--primary)" weight="fill" />
+                    ? <CheckCircle size={20} color="var(--brand)" weight="fill" />
                     : <X size={20} color="var(--terracotta)" weight="bold" />}
                   <h3 className="font-medium flex-1" style={{ fontFamily: 'Outfit' }}>{r.question}</h3>
                 </div>
@@ -139,8 +139,8 @@ export default function Quiz() {
                   {r.options.map((opt, j) => {
                     const isCorrect = j === r.correct_index;
                     const isWrongPick = j === r.your_index && !r.is_correct;
-                    let color = 'var(--muted)';
-                    if (isCorrect) color = 'var(--primary)';
+                    let color = 'var(--text-muted)';
+                    if (isCorrect) color = 'var(--brand)';
                     else if (isWrongPick) color = 'var(--terracotta)';
                     let prefix = '   ';
                     if (isCorrect) prefix = '✓ ';
@@ -155,7 +155,7 @@ export default function Quiz() {
                     );
                   })}
                   {r.explanation && (
-                    <div className="mt-2 italic" style={{ color: 'var(--muted)' }}>
+                    <div className="mt-2 italic" style={{ color: 'var(--text-muted)' }}>
                       {r.explanation}
                     </div>
                   )}
