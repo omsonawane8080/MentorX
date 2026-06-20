@@ -17,11 +17,13 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta, date
 from typing import List, Optional, Dict, Any
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, UploadFile, File, Form
+from fastapi.responses import StreamingResponse
 from starlette.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field
+from io import BytesIO
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -64,6 +66,7 @@ class OnboardingInput(BaseModel):
     target_role: str
     background: str
     timeline_months: int = 3
+    experience_level: str = "beginner"  # "beginner" | "intermediate" | "advanced"
 
 
 class TaskCompleteInput(BaseModel):
@@ -667,6 +670,79 @@ async def list_interviews(user: User = Depends(get_current_user)):
         {"user_id": user.user_id}, {"_id": 0, "messages": 0}
     ).sort("created_at", -1).to_list(20)
     return docs
+
+
+# ---------------------------------------------------------------------------
+# Voice Interview — Whisper STT + OpenAI TTS
+# ---------------------------------------------------------------------------
+from emergentintegrations.llm.openai import OpenAISpeechToText, OpenAITextToSpeech  # noqa: E402
+
+_stt = OpenAISpeechToText(api_key=os.environ.get("EMERGENT_LLM_KEY"))
+_tts = OpenAITextToSpeech(api_key=os.environ.get("EMERGENT_LLM_KEY"))
+TTS_VOICE = "sage"  # warm, measured — best for mentor/interviewer feel
+
+
+@api.post("/interview/transcribe")
+async def interview_transcribe(audio: UploadFile = File(...), user: User = Depends(get_current_user)):
+    """Transcribe a candidate's spoken answer to text. Returns {text}.
+
+    Frontend records via MediaRecorder (webm) and POSTs the blob as multipart.
+    """
+    raw = await audio.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty audio file")
+    if len(raw) > 24 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio too large (max 24MB)")
+    buf = BytesIO(raw)
+    # Whisper accepts mp3, mp4, mpeg, mpga, m4a, wav, webm — name matters for content-type
+    filename = audio.filename or "answer.webm"
+    if "." not in filename:
+        filename = f"{filename}.webm"
+    buf.name = filename
+    try:
+        resp = await _stt.transcribe(file=buf, model="whisper-1", response_format="json", language="en")
+    except Exception as e:
+        logger.exception("STT failed")
+        raise HTTPException(status_code=502, detail=f"Transcription failed: {e}")
+    return {"text": getattr(resp, "text", "") or ""}
+
+
+class SpeakInput(BaseModel):
+    text: str
+
+
+@api.post("/interview/speak")
+async def interview_speak(payload: SpeakInput, user: User = Depends(get_current_user)):
+    """Synthesize text to mp3 audio. Returns audio/mpeg stream.
+
+    Caches by exact text so repeated questions don't re-bill the API.
+    """
+    text = (payload.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text is required")
+    if len(text) > 4000:
+        text = text[:4000]
+
+    # Cache lookup
+    cached = await db.tts_cache.find_one({"text": text, "voice": TTS_VOICE}, {"_id": 0})
+    if cached and cached.get("audio_b64"):
+        import base64
+        audio_bytes = base64.b64decode(cached["audio_b64"])
+    else:
+        try:
+            audio_bytes = await _tts.generate_speech(text=text, model="tts-1", voice=TTS_VOICE)
+        except Exception as e:
+            logger.exception("TTS failed")
+            raise HTTPException(status_code=502, detail=f"Speech synthesis failed: {e}")
+        import base64
+        await db.tts_cache.insert_one({
+            "text": text,
+            "voice": TTS_VOICE,
+            "audio_b64": base64.b64encode(audio_bytes).decode(),
+            "created_at": now_utc().isoformat(),
+        })
+
+    return StreamingResponse(BytesIO(audio_bytes), media_type="audio/mpeg")
 
 
 # ---------------------------------------------------------------------------

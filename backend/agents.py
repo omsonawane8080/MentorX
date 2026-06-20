@@ -65,16 +65,25 @@ Generate concise, realistic, month-by-month roadmaps for the user's target tech 
 ALWAYS respond with valid JSON only, no markdown, no commentary.
 The roadmap MUST be achievable within the user's timeline."""
 
-async def generate_roadmap(target_role: str, background: str, timeline_months: int) -> Dict[str, Any]:
+async def generate_roadmap(target_role: str, background: str, timeline_months: int, experience_level: str = "beginner") -> Dict[str, Any]:
+    level_guidance = {
+        "beginner": "The learner is starting from ZERO. Include all foundational topics (basics of the language, math, prerequisites). Move from absolute fundamentals to job-ready in the timeline.",
+        "intermediate": "The learner knows fundamentals already. SKIP basic syntax/intro topics. Focus on intermediate skills, specialization, and 1-2 portfolio projects.",
+        "advanced": "The learner is already shipping. SKIP basics entirely. Focus on advanced topics, system design, performance, interview prep, and senior-level skills.",
+    }
+    guidance = level_guidance.get(experience_level, level_guidance["beginner"])
     prompt = f"""Create a roadmap for a learner.
 
 TARGET ROLE: {target_role}
+EXPERIENCE LEVEL: {experience_level}
+LEVEL GUIDANCE: {guidance}
 BACKGROUND: {background}
 TIMELINE: {timeline_months} months
 
 Return JSON with this exact shape:
 {{
-  "summary": "1-2 sentence motivating overview",
+  "summary": "1-2 sentence motivating overview that mentions the level (beginner/intermediate/advanced)",
+  "experience_level": "{experience_level}",
   "phases": [
     {{
       "month": 1,
@@ -88,7 +97,7 @@ Return JSON with this exact shape:
   "core_skills": ["skill1", "skill2", "skill3", "skill4", "skill5", "skill6"]
 }}
 
-Generate exactly {timeline_months} phases (one per month). Topics should be specific (e.g. 'NumPy & Pandas' not 'Data libraries'). Use real resource names (books, courses, docs)."""
+Generate exactly {timeline_months} phases (one per month). Topics MUST match the {experience_level} level (do not include basics for advanced; do include them for beginners). Use real resource names."""
     return await _ask_json(*GEMINI_FAST, f"planner-{uuid.uuid4()}", PLANNER_SYSTEM, prompt)
 
 
