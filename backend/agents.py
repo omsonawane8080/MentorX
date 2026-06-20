@@ -138,6 +138,70 @@ Make questions practical, not trivia. Mix conceptual and application questions."
 
 
 # ---------------------------------------------------------------------------
+# Learn Agent — explains a topic or resource so the user doesn't leave the app
+# ---------------------------------------------------------------------------
+LEARN_SYSTEM = """You are the Learn Agent of an AI Career Mentor.
+You produce concise, practical explanations of tech topics and learning resources.
+Write like a senior mentor who has 10 minutes to bring someone up to speed.
+Respond with valid JSON only. Use plain text — no markdown formatting in field values."""
+
+async def explain_topic(topic: str, target_role: str, background: str = "") -> Dict[str, Any]:
+    bg_line = f"\nLEARNER BACKGROUND: {background}" if background else ""
+    prompt = f"""Explain this topic for a learner aiming to become a {target_role}.{bg_line}
+
+TOPIC: {topic}
+
+Return JSON with this exact shape:
+{{
+  "title": "{topic}",
+  "kind": "topic",
+  "emoji": "single emoji that visually represents this topic",
+  "tagline": "1-sentence elevator pitch (max 20 words)",
+  "summary": "2-3 short paragraphs explaining what it is and how it works. Use plain prose. No bullet symbols. Separate paragraphs with \\n\\n.",
+  "why_it_matters": "1 paragraph (3-4 sentences) explaining why this matters for a {target_role}.",
+  "key_concepts": [
+    {{"name": "concept name", "detail": "1-sentence explanation"}}
+  ],
+  "learning_steps": [
+    {{"step": 1, "title": "...", "detail": "what to do, 1-2 sentences"}}
+  ],
+  "example": "A short practical example or scenario showing the concept in action (2-4 sentences).",
+  "code_snippet": "Optional. A small code example (10-20 lines max). Use Python if applicable. Empty string if not relevant.",
+  "code_language": "python|javascript|sql|bash|none",
+  "common_pitfalls": ["pitfall 1", "pitfall 2"],
+  "estimated_minutes": 30
+}}
+
+Provide 4-6 key_concepts and 3-5 learning_steps. Be specific and practical, not generic."""
+    return await _ask_json(*GEMINI_FAST, f"learn-topic-{uuid.uuid4()}", LEARN_SYSTEM, prompt)
+
+
+async def explain_resource(resource: str, target_role: str) -> Dict[str, Any]:
+    prompt = f"""Explain this learning resource for someone aiming to become a {target_role}.
+
+RESOURCE: {resource}
+
+Return JSON:
+{{
+  "title": "{resource}",
+  "kind": "resource",
+  "emoji": "📚 or 🎥 or 📖 or 🎓 depending on resource type",
+  "resource_type": "book|course|video|article|documentation|tutorial",
+  "tagline": "1-sentence summary of what this resource covers",
+  "summary": "2 short paragraphs (separated by \\n\\n) describing what's inside and the learning style.",
+  "why_it_matters": "1 paragraph on why this resource is valuable for a {target_role}.",
+  "what_youll_learn": ["takeaway 1", "takeaway 2", "takeaway 3", "takeaway 4"],
+  "best_for": "Who this is best for (e.g. 'beginners with no prior experience' or 'intermediate learners').",
+  "estimated_minutes": 120,
+  "tips": ["tip 1 on how to get the most out of it", "tip 2"],
+  "official_link_hint": "If you know it, the official URL or 'search: <query>' suggestion. Otherwise empty string."
+}}
+
+Be honest if you're unsure about the resource — say so in the summary."""
+    return await _ask_json(*GEMINI_FAST, f"learn-resource-{uuid.uuid4()}", LEARN_SYSTEM, prompt)
+
+
+# ---------------------------------------------------------------------------
 # Interviewer Agent — Mock Interviews (multi-turn)
 # ---------------------------------------------------------------------------
 INTERVIEWER_SYSTEM = """You are the Interviewer Agent of an AI Career Mentor.

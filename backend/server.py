@@ -257,6 +257,57 @@ async def get_roadmap(user: User = Depends(get_current_user)):
 
 
 # ---------------------------------------------------------------------------
+# Learn — in-app explanations for topics and resources (cached globally by name+role)
+# ---------------------------------------------------------------------------
+class LearnInput(BaseModel):
+    name: str
+    kind: str = "topic"  # "topic" | "resource"
+
+
+def _learn_cache_key(name: str, kind: str, role: str) -> str:
+    return f"{kind}::{role.lower()}::{name.lower().strip()}"
+
+
+@api.post("/learn/explain")
+async def learn_explain(payload: LearnInput, user: User = Depends(get_current_user)):
+    profile = await db.profiles.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not profile:
+        raise HTTPException(status_code=400, detail="Complete onboarding first")
+
+    role = profile["target_role"]
+    name = payload.name.strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="name is required")
+    if payload.kind not in ("topic", "resource"):
+        raise HTTPException(status_code=400, detail="kind must be 'topic' or 'resource'")
+
+    cache_key = _learn_cache_key(name, payload.kind, role)
+    cached = await db.learn_cache.find_one({"cache_key": cache_key}, {"_id": 0})
+    if cached:
+        return cached["data"]
+
+    try:
+        if payload.kind == "topic":
+            data = await agents.explain_topic(name, role, profile.get("background", ""))
+        else:
+            data = await agents.explain_resource(name, role)
+    except Exception as e:
+        logger.exception("Learn explanation failed")
+        raise HTTPException(status_code=502, detail=f"Explanation failed: {e}")
+
+    await db.learn_cache.insert_one({
+        "cache_key": cache_key,
+        "name": name,
+        "kind": payload.kind,
+        "role": role,
+        "data": data,
+        "created_at": now_utc().isoformat(),
+    })
+    return data
+
+
+
+# ---------------------------------------------------------------------------
 # Daily Tasks
 # ---------------------------------------------------------------------------
 def _today_key() -> str:

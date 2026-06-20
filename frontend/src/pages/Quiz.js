@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import api from '@/lib/api';
 import AppLayout from '@/components/AppLayout';
 import { APP } from '@/constants/testIds';
 import { CheckCircle, X } from '@phosphor-icons/react';
 
 export default function Quiz() {
-  const [topic, setTopic] = useState('');
+  const [searchParams] = useSearchParams();
+  const initialTopic = searchParams.get('topic') || '';
+  const [topic, setTopic] = useState(initialTopic);
   const [difficulty, setDifficulty] = useState('medium');
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState([]);
@@ -13,17 +16,28 @@ export default function Quiz() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const generate = async () => {
-    if (!topic.trim()) return;
+  // Auto-generate if topic is supplied via URL (e.g. from LearnModal)
+  useEffect(() => {
+    if (initialTopic && !quiz) {
+      // trigger generate on mount with the URL topic
+      generateTopic(initialTopic);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const generateTopic = async (t) => {
+    if (!t.trim()) return;
     setError(''); setResult(null); setQuiz(null); setLoading(true);
     try {
-      const { data } = await api.post('/quiz/generate', { topic: topic.trim(), difficulty });
+      const { data } = await api.post('/quiz/generate', { topic: t.trim(), difficulty });
       setQuiz(data);
       setAnswers(new Array(data.questions.length).fill(-1));
     } catch (e) {
       setError(e?.response?.data?.detail || 'Quiz generation failed');
     } finally { setLoading(false); }
   };
+
+  const generate = () => generateTopic(topic);
 
   const submit = async () => {
     setLoading(true);
