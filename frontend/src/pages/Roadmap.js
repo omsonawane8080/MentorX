@@ -35,8 +35,8 @@ export default function Roadmap() {
 
       <div className="relative pl-8 stagger">
         <div className="absolute left-3 top-2 bottom-2 w-px" style={{ background: 'var(--border)' }} />
-        {(data.phases || []).map((p, i) => (
-          <div key={i} className="mb-8 relative">
+        {(data.phases || []).map((p) => (
+          <div key={`phase-${p.month}`} className="mb-8 relative">
             <div className="absolute -left-8 top-1 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold"
                  style={{ background: 'var(--primary)', color: 'white' }}>
               {p.month}
