@@ -59,17 +59,42 @@ export default function Interview() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [iv?.status]);
 
-  // We previously used an effect to auto-speak — but browsers block audio
-  // playback that isn't tightly tied to a user gesture. Instead we now
-  // call speakText() directly from `start` and `sendText` (both triggered
-  // by user clicks), and expose a manual "Play question" button as a
-  // fallback so the user can always trigger playback.
+  // Pre-warmed audio element to bypass browser autoplay restrictions.
+  // Browsers require audio.play() to be inside a user gesture chain, but
+  // our TTS fetch breaks that. Solution: when the user clicks Start, we
+  // immediately play() this <audio> element with a tiny silent buffer
+  // which marks it as "user-activated" for the entire session. Later we
+  // just swap its .src to the TTS URL — no blocking.
+  const audioElRef = useRef(null);
+  const SILENT_MP3 = 'data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4Ljc2LjEwMAAAAAAAAAAAAAAA//tQAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAAEAAAABAAAJpAAAAAAA';
+
+  const unlockAudio = () => {
+    if (!audioElRef.current) {
+      const a = document.createElement('audio');
+      a.style.display = 'none';
+      a.preload = 'auto';
+      document.body.appendChild(a);
+      audioElRef.current = a;
+      a.onended = () => setSpeaking(false);
+      a.onerror = () => setSpeaking(false);
+    }
+    // Play a silent buffer to capture the user-activation gesture.
+    try {
+      audioElRef.current.src = SILENT_MP3;
+      const p = audioElRef.current.play();
+      if (p && p.catch) p.catch(() => { /* ignore */ });
+    } catch (_) { /* ignore */ }
+  };
 
   // Cleanup audio on unmount
   useEffect(() => {
     return () => {
       if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
       if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+      if (audioElRef.current && audioElRef.current.parentNode) {
+        audioElRef.current.parentNode.removeChild(audioElRef.current);
+        audioElRef.current = null;
+      }
     };
   }, []);
 
@@ -77,8 +102,6 @@ export default function Interview() {
     if (!audioOn) return;
     try {
       setSpeaking(true);
-      // Stop any currently playing audio first
-      if (audioRef.current) { try { audioRef.current.pause(); } catch (_) {} }
       const res = await fetch(`${API_BASE}/interview/speak`, {
         method: 'POST',
         credentials: 'include',
@@ -88,17 +111,19 @@ export default function Interview() {
       if (!res.ok) throw new Error('TTS request failed');
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audioRef.current = audio;
-      audio.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); };
-      audio.onerror = () => { setSpeaking(false); URL.revokeObjectURL(url); };
-      try {
-        await audio.play();
-      } catch (err) {
-        // Browser blocked autoplay — user can hit the "Play question" button
-        console.warn('Audio autoplay blocked:', err?.message);
+      const a = audioElRef.current;
+      if (a) {
+        a.onended = () => { setSpeaking(false); URL.revokeObjectURL(url); };
+        a.onerror = () => { setSpeaking(false); URL.revokeObjectURL(url); };
+        a.src = url;
+        try { await a.play(); }
+        catch (err) {
+          console.warn('Audio play blocked:', err?.message);
+          setSpeaking(false);
+          setError('Tap the 🔊 button below to hear the question.');
+        }
+      } else {
         setSpeaking(false);
-        setError('Tap the 🔊 button to hear the question (your browser blocked autoplay).');
       }
     } catch (e) {
       console.error('TTS failed:', e);
@@ -108,6 +133,7 @@ export default function Interview() {
 
   const replayLastQuestion = () => {
     if (!iv?.messages?.length) return;
+    unlockAudio();
     const lastInterviewer = [...iv.messages].reverse().find((m) => m.role === 'interviewer');
     if (lastInterviewer) {
       setError('');
@@ -118,11 +144,13 @@ export default function Interview() {
   const start = async () => {
     setError(''); setBusy(true); setEvaluation(null); autoSentRef.current = false;
     spokenIndexRef.current = -1;
+    // CRITICAL: unlock audio synchronously before any await so the
+    // user-activation gesture survives the network round-trip.
+    unlockAudio();
     try {
       const { data } = await api.post('/interview/start', { focus });
       setIv(data);
       setRemainingSec(data.time_limit_seconds || 480);
-      // Speak the opener immediately — still within the same click-driven flow
       const opener = data.messages?.[data.messages.length - 1];
       if (opener && opener.role === 'interviewer') {
         spokenIndexRef.current = data.messages.length - 1;

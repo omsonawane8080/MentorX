@@ -4,7 +4,7 @@ import { APP } from '@/constants/testIds';
 import RoadmapSwitcher from '@/components/RoadmapSwitcher';
 import {
   House, MapTrifold, ListChecks, Question, Microphone,
-  ChartLineUp, SignOut, Leaf,
+  ChartLineUp, SignOut, Leaf, ChatCircle,
 } from '@phosphor-icons/react';
 
 const navItems = [
@@ -13,6 +13,7 @@ const navItems = [
   { to: '/tasks', label: 'Today', icon: ListChecks, testId: APP.navTasks },
   { to: '/quiz', label: 'Quiz', icon: Question, testId: APP.navQuiz },
   { to: '/interview', label: 'Interview', icon: Microphone, testId: APP.navInterview },
+  { to: '/ask', label: 'Ask Mentor', icon: ChatCircle, testId: 'nav-ask' },
   { to: '/mentor', label: 'Mentor Review', icon: ChartLineUp, testId: APP.navMentor },
 ];
 

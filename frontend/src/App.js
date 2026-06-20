@@ -10,6 +10,7 @@ import Tasks from '@/pages/Tasks';
 import Quiz from '@/pages/Quiz';
 import Interview from '@/pages/Interview';
 import MentorReview from '@/pages/MentorReview';
+import AskMentor from '@/pages/AskMentor';
 
 function Protected({ children, requireOnboarded = false }) {
   const { user, loading } = useAuth();
@@ -42,6 +43,7 @@ function AppRouter() {
       <Route path="/tasks" element={<Protected requireOnboarded><Tasks /></Protected>} />
       <Route path="/quiz" element={<Protected requireOnboarded><Quiz /></Protected>} />
       <Route path="/interview" element={<Protected requireOnboarded><Interview /></Protected>} />
+      <Route path="/ask" element={<Protected requireOnboarded><AskMentor /></Protected>} />
       <Route path="/mentor" element={<Protected requireOnboarded><MentorReview /></Protected>} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

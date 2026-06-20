@@ -849,6 +849,70 @@ async def health():
 
 
 # ---------------------------------------------------------------------------
+# Mentor Chat — freeform Q&A with the AI mentor
+# ---------------------------------------------------------------------------
+class MentorAskInput(BaseModel):
+    question: str
+
+
+@api.get("/mentor/chat")
+async def get_mentor_chat(user: User = Depends(get_current_user)):
+    """Get the chat history for the user's ACTIVE roadmap."""
+    active = await _get_active_roadmap(user.user_id)
+    if not active:
+        return {"messages": [], "roadmap_id": None}
+    doc = await db.mentor_chats.find_one(
+        {"user_id": user.user_id, "roadmap_id": active["roadmap_id"]},
+        {"_id": 0},
+    )
+    return doc or {"messages": [], "roadmap_id": active["roadmap_id"]}
+
+
+@api.post("/mentor/ask")
+async def ask_mentor(payload: MentorAskInput, user: User = Depends(get_current_user)):
+    question = (payload.question or "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="question is required")
+    if len(question) > 2000:
+        question = question[:2000]
+
+    active = await _require_active_roadmap(user.user_id)
+    roadmap_id = active["roadmap_id"]
+
+    doc = await db.mentor_chats.find_one(
+        {"user_id": user.user_id, "roadmap_id": roadmap_id}, {"_id": 0},
+    )
+    history = (doc or {}).get("messages", [])
+
+    try:
+        reply = await agents.mentor_chat_reply(
+            active["target_role"], active.get("background", ""), history, question,
+        )
+    except Exception as e:
+        logger.exception("Mentor chat failed")
+        raise HTTPException(status_code=502, detail=f"Mentor chat failed: {e}")
+
+    history.append({"role": "user", "content": question, "ts": now_utc().isoformat()})
+    history.append({"role": "mentor", "content": reply.strip(), "ts": now_utc().isoformat()})
+
+    await db.mentor_chats.update_one(
+        {"user_id": user.user_id, "roadmap_id": roadmap_id},
+        {"$set": {"messages": history, "updated_at": now_utc().isoformat()}},
+        upsert=True,
+    )
+    return {"messages": history, "roadmap_id": roadmap_id}
+
+
+@api.post("/mentor/chat/clear")
+async def clear_mentor_chat(user: User = Depends(get_current_user)):
+    active = await _require_active_roadmap(user.user_id)
+    await db.mentor_chats.delete_one(
+        {"user_id": user.user_id, "roadmap_id": active["roadmap_id"]}
+    )
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
 # Mount
 # ---------------------------------------------------------------------------
 app.include_router(api)

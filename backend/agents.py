@@ -278,3 +278,28 @@ Produce a periodic 'Mentor Review' in JSON:
   "recommended_focus": ["1","2","3"]
 }}"""
     return await _ask_json(*GPT_REASONING, f"mentor-{uuid.uuid4()}", EVALUATOR_SYSTEM, prompt)
+
+
+# ---------------------------------------------------------------------------
+# Mentor Chat — freeform Q&A with the user's AI mentor
+# ---------------------------------------------------------------------------
+MENTOR_CHAT_SYSTEM = """You are a personal AI career mentor.
+You answer the learner's questions with practical, encouraging advice grounded in
+their target role and background. Keep replies focused and conversational
+(2-5 short paragraphs). Use plain text — no markdown formatting symbols like ** or ##.
+If you don't know something, say so honestly."""
+
+
+async def mentor_chat_reply(target_role: str, background: str, history: List[Dict[str, str]], question: str) -> str:
+    history_text = "\n".join(f"{m['role'].upper()}: {m['content']}" for m in history[-10:]) or "(no prior messages)"
+    prompt = f"""LEARNER TARGET ROLE: {target_role}
+LEARNER BACKGROUND: {background}
+
+CONVERSATION HISTORY (last 10):
+{history_text}
+
+LEARNER'S NEW QUESTION:
+{question}
+
+Reply as their personal AI mentor. Be specific, friendly, and practical."""
+    return await _ask_text(*GEMINI_FAST, f"mentor-chat-{uuid.uuid4()}", MENTOR_CHAT_SYSTEM, prompt)
