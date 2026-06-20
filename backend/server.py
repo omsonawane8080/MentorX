@@ -413,19 +413,28 @@ def _current_phase(roadmap: Dict[str, Any], days_since_start: int) -> Dict[str, 
     return phases[idx]
 
 
+async def _require_active_roadmap(user_id: str) -> Dict[str, Any]:
+    """Return the active roadmap doc or raise. Used for activity scoping."""
+    rm = await _get_active_roadmap(user_id)
+    if not rm:
+        raise HTTPException(status_code=400, detail="Complete onboarding first")
+    return rm
+
+
 @api.get("/tasks/today")
 async def get_today_tasks(user: User = Depends(get_current_user)):
     today = _today_key()
+    roadmap_doc = await _require_active_roadmap(user.user_id)
+    roadmap_id = roadmap_doc["roadmap_id"]
+
+    # Today's tasks are scoped to the ACTIVE roadmap. Switching roadmaps gives
+    # a fresh task set even on the same day.
     existing = await db.tasks.find_one(
-        {"user_id": user.user_id, "date": today}, {"_id": 0}
+        {"user_id": user.user_id, "date": today, "roadmap_id": roadmap_id},
+        {"_id": 0},
     )
     if existing:
         return existing
-
-    profile = await db.profiles.find_one({"user_id": user.user_id}, {"_id": 0})
-    roadmap_doc = await db.roadmaps.find_one({"user_id": user.user_id}, {"_id": 0})
-    if not profile or not roadmap_doc:
-        raise HTTPException(status_code=400, detail="Complete onboarding first")
 
     created_at_iso = roadmap_doc.get("created_at")
     try:
@@ -438,12 +447,12 @@ async def get_today_tasks(user: User = Depends(get_current_user)):
 
     phase = _current_phase(roadmap_doc["data"], days_since)
     prior = await db.tasks.find(
-        {"user_id": user.user_id, "all_done": True}, {"_id": 0}
+        {"user_id": user.user_id, "roadmap_id": roadmap_id, "all_done": True}, {"_id": 0}
     ).sort("date", -1).to_list(5)
     done_titles = [t["title"] for d in prior for t in d.get("tasks", []) if t.get("done")]
 
     try:
-        tasks = await agents.generate_daily_tasks(profile["target_role"], phase, done_titles)
+        tasks = await agents.generate_daily_tasks(roadmap_doc["target_role"], phase, done_titles)
     except Exception as e:
         logger.exception("Task generation failed")
         raise HTTPException(status_code=502, detail=f"Task generation failed: {e}")
@@ -451,6 +460,7 @@ async def get_today_tasks(user: User = Depends(get_current_user)):
     tasks = [{**t, "task_id": f"tk_{uuid.uuid4().hex[:8]}", "done": False} for t in tasks]
     doc = {
         "user_id": user.user_id,
+        "roadmap_id": roadmap_id,
         "date": today,
         "phase_title": phase.get("title"),
         "tasks": tasks,
@@ -465,7 +475,11 @@ async def get_today_tasks(user: User = Depends(get_current_user)):
 @api.post("/tasks/complete")
 async def complete_task(payload: TaskCompleteInput, user: User = Depends(get_current_user)):
     today = _today_key()
-    doc = await db.tasks.find_one({"user_id": user.user_id, "date": today}, {"_id": 0})
+    roadmap = await _require_active_roadmap(user.user_id)
+    roadmap_id = roadmap["roadmap_id"]
+    doc = await db.tasks.find_one(
+        {"user_id": user.user_id, "date": today, "roadmap_id": roadmap_id}, {"_id": 0},
+    )
     if not doc:
         raise HTTPException(status_code=404, detail="No tasks for today")
     updated = False
@@ -476,22 +490,27 @@ async def complete_task(payload: TaskCompleteInput, user: User = Depends(get_cur
     all_done = all(t["done"] for t in doc["tasks"])
     doc["all_done"] = all_done
     await db.tasks.update_one(
-        {"user_id": user.user_id, "date": today},
+        {"user_id": user.user_id, "date": today, "roadmap_id": roadmap_id},
         {"$set": {"tasks": doc["tasks"], "all_done": all_done}},
     )
-    # update streak if all done
     if all_done and updated:
-        await _bump_streak(user.user_id)
+        await _bump_streak(user.user_id, roadmap_id)
     return doc
 
 
-async def _bump_streak(user_id: str):
-    streak = await db.streaks.find_one({"user_id": user_id}, {"_id": 0})
+async def _bump_streak(user_id: str, roadmap_id: str):
+    """Streak is tracked per-roadmap so each track has its own momentum."""
+    streak = await db.streaks.find_one(
+        {"user_id": user_id, "roadmap_id": roadmap_id}, {"_id": 0},
+    )
     today = date.today()
     if not streak:
         await db.streaks.insert_one({
-            "user_id": user_id, "count": 1,
-            "last_date": today.isoformat(), "best": 1,
+            "user_id": user_id,
+            "roadmap_id": roadmap_id,
+            "count": 1,
+            "last_date": today.isoformat(),
+            "best": 1,
         })
         return
     last = date.fromisoformat(streak["last_date"])
@@ -500,7 +519,7 @@ async def _bump_streak(user_id: str):
     new_count = streak["count"] + 1 if (today - last).days == 1 else 1
     best = max(new_count, streak.get("best", 1))
     await db.streaks.update_one(
-        {"user_id": user_id},
+        {"user_id": user_id, "roadmap_id": roadmap_id},
         {"$set": {"count": new_count, "last_date": today.isoformat(), "best": best}},
     )
 
@@ -510,6 +529,8 @@ async def _bump_streak(user_id: str):
 # ---------------------------------------------------------------------------
 @api.post("/quiz/generate")
 async def quiz_generate(payload: QuizGenerateInput, user: User = Depends(get_current_user)):
+    roadmap = await _require_active_roadmap(user.user_id)
+    roadmap_id = roadmap["roadmap_id"]
     try:
         questions = await agents.generate_quiz(
             payload.topic, payload.difficulty, payload.num_questions
@@ -524,6 +545,7 @@ async def quiz_generate(payload: QuizGenerateInput, user: User = Depends(get_cur
     doc = {
         "quiz_id": quiz_id,
         "user_id": user.user_id,
+        "roadmap_id": roadmap_id,
         "topic": payload.topic,
         "difficulty": payload.difficulty,
         "questions": questions,
@@ -565,6 +587,7 @@ async def quiz_submit(payload: QuizSubmitInput, user: User = Depends(get_current
     score = round(100 * correct / max(len(quiz["questions"]), 1))
     await db.quiz_results.insert_one({
         "user_id": user.user_id,
+        "roadmap_id": quiz.get("roadmap_id"),
         "quiz_id": payload.quiz_id,
         "topic": quiz["topic"],
         "score": score,
@@ -580,21 +603,20 @@ async def quiz_submit(payload: QuizSubmitInput, user: User = Depends(get_current
 # ---------------------------------------------------------------------------
 @api.post("/interview/start")
 async def interview_start(payload: InterviewStartInput, user: User = Depends(get_current_user)):
-    profile = await db.profiles.find_one({"user_id": user.user_id}, {"_id": 0})
-    if not profile:
-        raise HTTPException(status_code=400, detail="Complete onboarding first")
+    roadmap = await _require_active_roadmap(user.user_id)
+    roadmap_id = roadmap["roadmap_id"]
     interview_id = f"iv_{uuid.uuid4().hex[:10]}"
     try:
-        opener = await agents.interview_next(profile["target_role"], payload.focus, [])
+        opener = await agents.interview_next(roadmap["target_role"], payload.focus, [])
     except Exception as e:
         logger.exception("Interview start failed")
         raise HTTPException(status_code=502, detail=f"Interview start failed: {e}")
-    # 4 turns * 2 minutes = 8 minutes total interview time
     time_limit_seconds = 8 * 60
     doc = {
         "interview_id": interview_id,
         "user_id": user.user_id,
-        "target_role": profile["target_role"],
+        "roadmap_id": roadmap_id,
+        "target_role": roadmap["target_role"],
         "focus": payload.focus,
         "messages": [{"role": "interviewer", "content": opener, "ts": now_utc().isoformat()}],
         "status": "ongoing",
@@ -666,8 +688,12 @@ async def interview_evaluate(interview_id: str, user: User = Depends(get_current
 
 @api.get("/interviews")
 async def list_interviews(user: User = Depends(get_current_user)):
+    active_rm = await _get_active_roadmap(user.user_id)
+    scope = {"user_id": user.user_id}
+    if active_rm:
+        scope["roadmap_id"] = active_rm["roadmap_id"]
     docs = await db.interviews.find(
-        {"user_id": user.user_id}, {"_id": 0, "messages": 0}
+        scope, {"_id": 0, "messages": 0}
     ).sort("created_at", -1).to_list(20)
     return docs
 
@@ -751,23 +777,32 @@ async def interview_speak(payload: SpeakInput, user: User = Depends(get_current_
 @api.get("/dashboard")
 async def dashboard(user: User = Depends(get_current_user)):
     profile = await db.profiles.find_one({"user_id": user.user_id}, {"_id": 0})
-    streak = await db.streaks.find_one({"user_id": user.user_id}, {"_id": 0}) or {"count": 0, "best": 0}
+    active_rm = await _get_active_roadmap(user.user_id)
+    roadmap_id = active_rm["roadmap_id"] if active_rm else None
 
-    task_docs = await db.tasks.find({"user_id": user.user_id}, {"_id": 0}).to_list(60)
+    # Scope every aggregation to the ACTIVE roadmap. Switching gives a clean slate.
+    if roadmap_id:
+        scope = {"user_id": user.user_id, "roadmap_id": roadmap_id}
+    else:
+        scope = {"user_id": user.user_id}
+
+    streak = await db.streaks.find_one(scope, {"_id": 0}) or {"count": 0, "best": 0}
+
+    task_docs = await db.tasks.find(scope, {"_id": 0}).to_list(60)
     total_tasks = sum(len(d["tasks"]) for d in task_docs)
     done_tasks = sum(sum(1 for t in d["tasks"] if t["done"]) for d in task_docs)
 
-    quiz_docs = await db.quiz_results.find({"user_id": user.user_id}, {"_id": 0}).to_list(50)
+    quiz_docs = await db.quiz_results.find(scope, {"_id": 0}).to_list(50)
     avg_quiz = round(sum(q["score"] for q in quiz_docs) / max(len(quiz_docs), 1)) if quiz_docs else 0
 
-    interview_count = await db.interviews.count_documents({"user_id": user.user_id})
+    interview_count = await db.interviews.count_documents(scope)
 
-    # readiness: blend of completion + quiz + interviews
     completion_pct = round(100 * done_tasks / max(total_tasks, 1)) if total_tasks else 0
     readiness = round(0.4 * completion_pct + 0.4 * avg_quiz + 0.2 * min(interview_count * 20, 100))
 
     return {
         "profile": profile,
+        "active_roadmap_id": roadmap_id,
         "streak": {"count": streak.get("count", 0), "best": streak.get("best", 0)},
         "stats": {
             "tasks_done": done_tasks,
@@ -800,6 +835,7 @@ async def mentor_review_endpoint(user: User = Depends(get_current_user)):
     review_doc = {
         "review_id": f"mr_{uuid.uuid4().hex[:8]}",
         "user_id": user.user_id,
+        "roadmap_id": dash.get("active_roadmap_id"),
         "data": review,
         "created_at": now_utc().isoformat(),
     }
