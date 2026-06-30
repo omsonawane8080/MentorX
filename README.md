@@ -1,6 +1,6 @@
 # Personal AI Interview Mentor
 
-A private desktop mentor app for AI/ML, GenAI, and DSA interview preparation.
+A private desktop mentor app for interview preparation.
 
 ## What It Does
 
